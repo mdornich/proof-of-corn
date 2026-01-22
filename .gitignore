@@ -1,0 +1,16 @@
+# Environment variables (contains API keys)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+.vercel/
+
+# OS
+.DS_Store
