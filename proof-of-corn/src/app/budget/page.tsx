@@ -33,10 +33,11 @@ export default function BudgetPage() {
           <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
             Proof of Corn
           </Link>
-          <nav className="flex gap-6 text-sm text-zinc-500">
+          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
             <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
             <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
             <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
+            <Link href="/process" className="hidden sm:block hover:text-zinc-900 transition-colors">Process</Link>
             <Link href="/budget" className="text-zinc-900">Budget</Link>
           </nav>
         </div>
@@ -49,7 +50,7 @@ export default function BudgetPage() {
           <p className="text-zinc-500 mb-12">Every dollar tracked, from domain to harvest.</p>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-4 mb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
             <div className="bg-white border border-zinc-200 rounded-lg p-4">
               <p className="text-sm text-zinc-500 mb-1">Total Investment</p>
               <p className="text-2xl font-bold">${totalExpenses.toLocaleString()}</p>
@@ -114,7 +115,7 @@ export default function BudgetPage() {
           {/* Revenue Projection */}
           <h2 className="text-xl font-bold mb-4">Revenue Projection</h2>
           <div className="bg-white border border-zinc-200 rounded-lg p-6 mb-12">
-            <div className="grid grid-cols-3 gap-6 text-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
               <div>
                 <p className="text-3xl font-bold">{revenue.yield.toLocaleString()}</p>
                 <p className="text-sm text-zinc-500">bushels expected</p>

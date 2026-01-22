@@ -138,11 +138,11 @@ export default function LogPage() {
           <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
             Proof of Corn
           </Link>
-          <nav className="flex gap-6 text-sm text-zinc-500">
+          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
             <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
             <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
             <Link href="/log" className="text-zinc-900">Log</Link>
-            <Link href="/process" className="hover:text-zinc-900 transition-colors">Process</Link>
+            <Link href="/process" className="hidden sm:block hover:text-zinc-900 transition-colors">Process</Link>
             <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
           </nav>
         </div>
@@ -158,7 +158,7 @@ export default function LogPage() {
           </p>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
               <p className="text-2xl font-bold">{logEntries.length}</p>
               <p className="text-sm text-zinc-500">entries</p>

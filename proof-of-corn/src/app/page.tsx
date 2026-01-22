@@ -15,11 +15,11 @@ export default function Home() {
           <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
             Proof of Corn
           </Link>
-          <nav className="flex gap-6 text-sm text-zinc-500">
+          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
             <Link href="/" className="text-zinc-900">Home</Link>
             <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
             <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
-            <Link href="/process" className="hover:text-zinc-900 transition-colors">Process</Link>
+            <Link href="/process" className="hidden sm:block hover:text-zinc-900 transition-colors">Process</Link>
             <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
           </nav>
         </div>
@@ -71,7 +71,7 @@ export default function Home() {
       <section className="px-6 py-16 border-b border-zinc-200 bg-white">
         <div className="max-w-2xl mx-auto">
           <h2 className="text-2xl font-bold mb-6">The Architecture</h2>
-          <pre className="text-sm text-zinc-600 bg-zinc-50 p-6 rounded-lg overflow-x-auto font-mono">
+          <pre className="text-[10px] sm:text-sm text-zinc-600 bg-zinc-50 p-4 sm:p-6 rounded-lg overflow-x-auto font-mono">
 {`┌─────────────────────────────────────────────────┐
 │              CLAUDE CODE (Brain)                │
 │  • Aggregates sensor data + weather forecasts   │

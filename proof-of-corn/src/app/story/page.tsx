@@ -15,11 +15,11 @@ export default function StoryPage() {
           <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
             Proof of Corn
           </Link>
-          <nav className="flex gap-6 text-sm text-zinc-500">
+          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
             <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
             <Link href="/story" className="text-zinc-900">Story</Link>
             <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
-            <Link href="/process" className="hover:text-zinc-900 transition-colors">Process</Link>
+            <Link href="/process" className="hidden sm:block hover:text-zinc-900 transition-colors">Process</Link>
             <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
           </nav>
         </div>

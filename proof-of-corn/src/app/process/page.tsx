@@ -15,7 +15,7 @@ export default function ProcessPage() {
           <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
             Proof of Corn
           </Link>
-          <nav className="flex gap-6 text-sm text-zinc-500">
+          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
             <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
             <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
             <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
