@@ -32,7 +32,7 @@
 - **Next Step**: Create account, set up "Proof of Corn" device profile
 
 ### Leaf Agriculture (Farm Data API)
-- **Status**: Needs outreach
+- **Status**: Email sent, awaiting response
 - **URL**: https://withleaf.io
 - **Features**:
   - Satellite imagery (NDVI)
@@ -40,7 +40,31 @@
   - Field boundary management
   - Weather integration
 - **Pricing**: Per-use for small projects, contact for quote
-- **Next Step**: Email to request API access for pilot project
+- **Next Step**: Await response
+
+### Satellite Imagery Options
+
+**Option 1: OpenWeather Agro API** (FREE with existing account)
+- URL: https://agromonitoring.com/
+- Landsat 8 + Sentinel 2 based
+- NDVI, EVI indices
+- True/False color imagery
+- Included in free OpenWeather tier
+
+**Option 2: Sentinel Hub** (Free tier available)
+- URL: https://www.sentinel-hub.com/
+- Copernicus Sentinel-2 data
+- 10-20m resolution
+- 5-day revisit
+- NDVI calculations via API
+- Trial available
+
+**Option 3: Planet Labs** (30-day free trial)
+- URL: https://www.planet.com/sign-up/agriculture/
+- 3.7m resolution daily imagery
+- Best-in-class for agriculture
+- 30,000 processing units free trial
+- Contact sales for small area pricing
 
 ---
 
