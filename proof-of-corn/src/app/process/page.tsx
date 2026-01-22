@@ -20,6 +20,7 @@ export default function ProcessPage() {
             <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
             <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
             <Link href="/process" className="text-zinc-900">Process</Link>
+            <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
           </nav>
         </div>
       </header>

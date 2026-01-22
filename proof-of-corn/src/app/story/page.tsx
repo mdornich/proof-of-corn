@@ -20,6 +20,7 @@ export default function StoryPage() {
             <Link href="/story" className="text-white">Story</Link>
             <Link href="/log" className="hover:text-white transition-colors">Log</Link>
             <Link href="/process" className="hover:text-white transition-colors">Process</Link>
+            <Link href="/budget" className="hover:text-white transition-colors">Budget</Link>
           </nav>
         </div>
       </header>

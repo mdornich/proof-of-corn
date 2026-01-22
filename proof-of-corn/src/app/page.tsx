@@ -66,6 +66,7 @@ export default function Home() {
             <Link href="/story" className="hover:text-white transition-colors">Story</Link>
             <Link href="/log" className="hover:text-white transition-colors">Log</Link>
             <Link href="/process" className="hover:text-white transition-colors">Process</Link>
+            <Link href="/budget" className="hover:text-white transition-colors">Budget</Link>
           </nav>
         </div>
       </header>
