@@ -30,48 +30,69 @@ export default function StoryPage() {
         <div className="max-w-2xl mx-auto">
           <p className="text-amber-700 text-sm tracking-wide mb-4">THE ORIGIN</p>
           <h1 className="text-3xl font-bold mb-2">A Walk in San Francisco</h1>
-          <p className="text-zinc-500 mb-12">January 21, 2026</p>
+          <p className="text-zinc-500 mb-12">January 21, 2026 &middot; 8:15 PM</p>
 
           <div className="prose-clean text-zinc-700">
             <p>
-              It started with dinner. House of Nanking on Kearny Street, around 8pm on a
-              Wednesday night. The kind of San Francisco evening where the fog hasn&apos;t
-              rolled in yet and the city still feels electric.
+              It started with dinner. House of Nanking on Kearny Street, around 7pm on a
+              Tuesday night. The kind of San Francisco evening where the fog hasn&apos;t
+              rolled in yet and the city feels quiet—too quiet, maybe.
             </p>
 
             <p>
-              <a href="https://x.com/fredwilson" className="text-amber-600 hover:underline">@fredwilson</a> and
+              <a href="https://x.com/fredwilson" className="text-amber-600 hover:underline">Fred Wilson</a> and
               I walked from the restaurant toward his hotel at 1 Hotel San Francisco
               by the Embarcadero. We&apos;d been talking about AI—not the hype, but the
               reality. What it can actually do. What it can&apos;t.
             </p>
 
             <p>
-              Fred&apos;s been in tech for decades. He&apos;s seen every wave. And he had a
-              point that cut through all the noise:
+              I&apos;d been describing my experience with Claude Code. Something had shifted
+              around New Year&apos;s. For the first time, I felt like I could do anything
+              with software from my terminal. Not &ldquo;someday&rdquo;—now.
             </p>
 
-            <blockquote className="border-l-4 border-amber-400 pl-6 my-8 text-xl italic text-zinc-600">
-              &ldquo;Well, you can&apos;t grow corn.&rdquo;
-            </blockquote>
+            <h2 className="text-2xl font-bold mt-12 mb-6">The Moment: 8:15 PM</h2>
+
+            <p className="text-sm text-zinc-500 mb-4">
+              Walking along the Embarcadero toward 1 Hotel San Francisco
+            </p>
+
+            <div className="bg-white border border-zinc-200 rounded-lg p-6 my-8 font-mono text-sm space-y-4">
+              <p><span className="text-zinc-500">SETH:</span> &ldquo;I can do anything I want with software from my terminal.&rdquo;</p>
+
+              <p><span className="text-zinc-500">FRED:</span> &ldquo;That&apos;s not fire. You can&apos;t like grow corn.&rdquo;</p>
+
+              <p><span className="text-zinc-500">SETH:</span> &ldquo;I bet you I could. You know what I mean? I&apos;m going to grow corn for you.&rdquo;</p>
+
+              <p><span className="text-zinc-500">FRED:</span> &ldquo;That&apos;d be great. Thank you.&rdquo;</p>
+
+              <p><span className="text-zinc-500">SETH:</span> &ldquo;I&apos;m going to figure it out and I&apos;m going to show you. And that&apos;ll be our first vibe coding project together.&rdquo;</p>
+
+              <p><span className="text-zinc-500">FRED:</span> &ldquo;It&apos;s a physical thing.&rdquo;</p>
+
+              <p><span className="text-zinc-500">SETH:</span> &ldquo;I will buy fucking land with an API via my terminal and I will hire some service to plant corn.&rdquo;</p>
+
+              <p><span className="text-zinc-500">FRED:</span> &ldquo;Okay, well that&apos;s a little different... you&apos;re going to get somebody to grow corn for you. But that&apos;s not exactly what I&apos;m talking about. Like, you can hire Jeff to come and make dinner for you, but like you can&apos;t make dinner.&rdquo;</p>
+
+              <p><span className="text-zinc-500">SETH:</span> &ldquo;No, but anything that could be done with technology, I can do now. Anything, which is insane.&rdquo;</p>
+            </div>
 
             <p>
-              It was a simple statement. AI can write code. AI can generate images.
-              AI can pass the bar exam. But can it affect the physical world? Can it
-              make something actually grow?
+              That was the challenge. Fred&apos;s point was precise: there&apos;s a gap between
+              digital and physical that AI can&apos;t cross. Code doesn&apos;t water plants.
+              Prompts don&apos;t drive tractors. Language models don&apos;t know when to harvest.
             </p>
 
             <p>
-              The argument is that there&apos;s a gap between digital and physical that AI
-              can&apos;t cross. Code doesn&apos;t water plants. Prompts don&apos;t drive tractors.
-              Language models don&apos;t know when to harvest.
+              But there was something in his framing that I thought missed the mark.
             </p>
 
-            <h2 className="text-2xl font-bold mt-12 mb-6">The Response</h2>
+            <h2 className="text-2xl font-bold mt-12 mb-6">The Insight</h2>
 
             <p>
-              I got home that night and opened Claude Code. Not to prove Fred wrong—
-              but to explore whether he might be missing something.
+              I got home that night and opened Claude Code. Not to prove Fred wrong—but
+              to explore whether he might be missing something.
             </p>
 
             <p>
@@ -81,37 +102,36 @@ export default function StoryPage() {
             </p>
 
             <p>
-              What if Claude Code became that farm manager?
-            </p>
-
-            <h2 className="text-2xl font-bold mt-12 mb-6">My Dinner with AI</h2>
-
-            <p>
-              There&apos;s something almost <em>My Dinner with Andre</em> about this moment
-              we&apos;re living through. Two people walking through a city, having a
-              conversation that seems philosophical but is actually deeply practical.
+              Fred&apos;s analogy was: &ldquo;You can hire Jeff to make dinner, but you can&apos;t make dinner.&rdquo;
             </p>
 
             <p>
-              Except now, the conversation doesn&apos;t end at the hotel lobby. It continues
-              with a collaborator that never sleeps, that can research Iowa farm leases
-              at midnight, that can write decision-making algorithms while you sleep,
-              that can register a domain and deploy a website before you&apos;ve finished
-              your coffee the next morning.
+              But that&apos;s exactly what a restaurant owner does. They don&apos;t cook every meal.
+              They hire chefs, source ingredients, manage inventory, make decisions about
+              the menu. The output is dinner. The method is orchestration.
             </p>
 
             <p>
-              This is what vibe coding actually means. It&apos;s not about prompting AI to
-              generate code. It&apos;s about having an idea—born from a real conversation
-              with a real friend on a real street—and then collaborating with AI to
-              bring it into existence.
+              What if Claude Code became a farm manager?
             </p>
 
+            <h2 className="text-2xl font-bold mt-12 mb-6">12 Hours Later</h2>
+
             <p>
-              The prompt wasn&apos;t &ldquo;generate a website.&rdquo; The prompt was a challenge
-              from a friend. The website, the domain, the IoT architecture, the custom
-              farming contracts, the decision engine—all of that emerged from the
-              collaboration.
+              By the next afternoon, working with Claude Code:
+            </p>
+
+            <ul className="list-disc pl-6 space-y-2 my-6">
+              <li>Registered proofofcorn.com via API</li>
+              <li>Built and deployed this website</li>
+              <li>Researched Iowa custom farming rates, land costs, planting windows</li>
+              <li>Sent 10 outreach emails to extension offices, land companies, seed suppliers</li>
+              <li>Created a decision engine for farming operations</li>
+              <li>Made the first AI farming decision: <strong>WAIT</strong> (78 days to planting window)</li>
+            </ul>
+
+            <p>
+              Total cost: $12.99 (the domain).
             </p>
 
             <h2 className="text-2xl font-bold mt-12 mb-6">What We&apos;re Proving</h2>
