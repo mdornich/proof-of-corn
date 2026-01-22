@@ -90,15 +90,27 @@ proof-of-corn/
 ├── README.md                  # You are here
 ├── CASE_STUDY.md              # Full documentation for the case study
 ├── INFRASTRUCTURE.md          # Setup guide, contacts, rates
-├── NEXT_STEPS.md              # Action items
+├── BUDGET.md                  # Detailed cost/revenue projections
+├── OUTREACH_LOG.md            # All emails sent, response tracking
+├── SENSOR_KIT.md              # IoT hardware shopping list
+├── SOCIAL.md                  # Twitter/LinkedIn/HN drafts
 ├── decision-engine/
-│   ├── farm_manager.py        # Claude's decision-making code
-│   └── test_weather.py        # Weather API integration test
+│   ├── farm_manager.py        # Decision-making framework
+│   ├── test_weather.py        # Weather API test
+│   └── daily_check.py         # Automated daily monitoring
+├── sensors/
+│   ├── soil_sensor/           # ESP32 firmware (PlatformIO)
+│   └── README.md              # Hardware setup guide
+├── thingsboard/
+│   └── SETUP.md               # Dashboard configuration
+├── logs/
+│   └── check_*.json           # Daily decision logs
 └── proof-of-corn/             # Chronicle website (Next.js)
     └── src/app/
-        ├── page.tsx           # Home page
+        ├── page.tsx           # Home
         ├── story/page.tsx     # Origin story
-        └── log/page.tsx       # Real-time decision log
+        ├── log/page.tsx       # Decision log
+        └── process/page.tsx   # How it was built
 ```
 
 ---
