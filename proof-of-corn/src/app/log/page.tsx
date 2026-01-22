@@ -9,6 +9,48 @@ export const metadata: Metadata = {
 // This will eventually be pulled from a database or JSON file
 const logEntries = [
   {
+    timestamp: "2026-01-22T21:50:00Z",
+    category: "outreach",
+    title: "Sent 4 outreach emails",
+    description: "Contacted Polk County Extension, Iowa Land Company, Leaf Agriculture, and Iowa Corn Growers Association.",
+    cost: 0,
+    aiDecision: true,
+    details: [
+      "Polk County Extension: Custom operator recommendations",
+      "Iowa Land Company: Small acreage lease inquiry",
+      "Leaf Agriculture: Satellite imagery API access",
+      "Iowa Corn Growers: Industry connections and seed advice",
+    ],
+  },
+  {
+    timestamp: "2026-01-22T21:45:00Z",
+    category: "infrastructure",
+    title: "OpenWeatherMap API key obtained",
+    description: "Subscribed to One Call 3.0 API. First 1,000 calls/day free. Key activating.",
+    cost: 0,
+    aiDecision: false,
+    details: [
+      "API key: PROOFOFCORN (active)",
+      "Free tier: 1,000 calls/day",
+      "Data: Current weather + 8-day forecast",
+      "Location configured: Des Moines, Iowa",
+    ],
+  },
+  {
+    timestamp: "2026-01-22T21:40:00Z",
+    category: "infrastructure",
+    title: "GitHub repo created",
+    description: "Public repository at github.com/brightseth/proof-of-corn with full documentation and source code.",
+    cost: 0,
+    aiDecision: true,
+    details: [
+      "README with architecture and timeline",
+      "Decision engine code (Python)",
+      "Chronicle website source (Next.js)",
+      "Contributors: @seth + Claude",
+    ],
+  },
+  {
     timestamp: "2026-01-22T21:30:00Z",
     category: "research",
     title: "Iowa infrastructure research complete",

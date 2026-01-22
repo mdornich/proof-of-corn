@@ -20,112 +20,112 @@ FARM_LON = -93.6250  # Des Moines longitude
 LOCATION_NAME = "Des Moines, Iowa (Proof of Corn target area)"
 
 def test_current_weather(api_key: str):
-    """Test current weather endpoint."""
+    """Test current weather using One Call API 3.0."""
     print("\n" + "="*60)
-    print("CURRENT WEATHER")
+    print("CURRENT WEATHER (One Call API 3.0)")
     print("="*60)
 
-    url = "https://api.openweathermap.org/data/2.5/weather"
+    # Using One Call API 3.0 (what Seth subscribed to)
+    url = "https://api.openweathermap.org/data/3.0/onecall"
     params = {
         "lat": FARM_LAT,
         "lon": FARM_LON,
         "appid": api_key,
-        "units": "imperial"
+        "units": "imperial",
+        "exclude": "minutely,hourly"  # Just get current + daily for this test
     }
 
     response = requests.get(url, params=params)
 
     if response.status_code == 200:
         data = response.json()
-        print(f"Location: {data.get('name', 'Unknown')}")
-        print(f"Temperature: {data['main']['temp']}°F")
-        print(f"Feels like: {data['main']['feels_like']}°F")
-        print(f"Humidity: {data['main']['humidity']}%")
-        print(f"Conditions: {data['weather'][0]['description']}")
-        print(f"Wind: {data['wind']['speed']} mph")
-        return True
+        current = data.get('current', {})
+        print(f"Temperature: {current.get('temp', 'N/A')}°F")
+        print(f"Feels like: {current.get('feels_like', 'N/A')}°F")
+        print(f"Humidity: {current.get('humidity', 'N/A')}%")
+        print(f"Conditions: {current.get('weather', [{}])[0].get('description', 'N/A')}")
+        print(f"Wind: {current.get('wind_speed', 'N/A')} mph")
+        print(f"UV Index: {current.get('uvi', 'N/A')}")
+        return data
+    elif response.status_code == 401:
+        print("Error 401: API key not activated yet (wait a few minutes)")
+        print("Or check your key at: https://home.openweathermap.org/api_keys")
+        return None
     else:
         print(f"Error: {response.status_code}")
         print(response.text)
-        return False
+        return None
 
 
-def test_5day_forecast(api_key: str):
-    """Test 5-day forecast endpoint."""
+def test_5day_forecast(api_key: str, onecall_data=None):
+    """Test 8-day forecast from One Call API 3.0."""
     print("\n" + "="*60)
-    print("5-DAY FORECAST")
+    print("8-DAY FORECAST (One Call API 3.0)")
     print("="*60)
 
-    url = "https://api.openweathermap.org/data/2.5/forecast"
-    params = {
-        "lat": FARM_LAT,
-        "lon": FARM_LON,
-        "appid": api_key,
-        "units": "imperial"
-    }
+    if onecall_data is None:
+        # Fetch if not already fetched
+        url = "https://api.openweathermap.org/data/3.0/onecall"
+        params = {
+            "lat": FARM_LAT,
+            "lon": FARM_LON,
+            "appid": api_key,
+            "units": "imperial",
+            "exclude": "minutely,hourly"
+        }
+        response = requests.get(url, params=params)
+        if response.status_code != 200:
+            print(f"Error: {response.status_code}")
+            return False
+        onecall_data = response.json()
 
-    response = requests.get(url, params=params)
-
-    if response.status_code == 200:
-        data = response.json()
-        print(f"City: {data['city']['name']}")
-        print(f"Forecast periods: {len(data['list'])}")
-        print()
-
-        # Group by day and show daily summary
-        days = {}
-        for item in data['list']:
-            dt = datetime.fromtimestamp(item['dt'])
-            day_key = dt.strftime("%Y-%m-%d")
-            if day_key not in days:
-                days[day_key] = {
-                    "temps": [],
-                    "precip": 0,
-                    "conditions": []
-                }
-            days[day_key]["temps"].append(item['main']['temp'])
-            days[day_key]["precip"] += item.get('rain', {}).get('3h', 0) / 25.4  # mm to inches
-            days[day_key]["conditions"].append(item['weather'][0]['main'])
-
-        print("Daily Summary:")
-        print("-" * 50)
-        for day, info in list(days.items())[:5]:
-            high = max(info['temps'])
-            low = min(info['temps'])
-            precip = info['precip']
-            # Most common condition
-            condition = max(set(info['conditions']), key=info['conditions'].count)
-            print(f"  {day}: {low:.0f}°F - {high:.0f}°F | {precip:.2f}\" rain | {condition}")
-
-        return True
-    else:
-        print(f"Error: {response.status_code}")
-        print(response.text)
+    daily = onecall_data.get('daily', [])
+    if not daily:
+        print("No daily forecast data available")
         return False
 
+    print(f"Forecast days: {len(daily)}")
+    print()
+    print("Daily Summary:")
+    print("-" * 60)
 
-def test_planting_conditions(api_key: str):
+    for day in daily[:8]:
+        dt = datetime.fromtimestamp(day['dt'])
+        date_str = dt.strftime("%a %m/%d")
+        high = day['temp']['max']
+        low = day['temp']['min']
+        rain = day.get('rain', 0)  # mm
+        rain_inches = rain / 25.4
+        pop = day.get('pop', 0) * 100  # probability of precipitation
+        condition = day.get('weather', [{}])[0].get('main', 'N/A')
+
+        print(f"  {date_str}: {low:.0f}°F - {high:.0f}°F | {pop:.0f}% chance | {rain_inches:.2f}\" | {condition}")
+
+    return True
+
+
+def test_planting_conditions(api_key: str, onecall_data=None):
     """Check if conditions are suitable for corn planting."""
     print("\n" + "="*60)
     print("PLANTING CONDITIONS CHECK")
     print("="*60)
 
-    # Get current weather
-    url = "https://api.openweathermap.org/data/2.5/weather"
-    params = {
-        "lat": FARM_LAT,
-        "lon": FARM_LON,
-        "appid": api_key,
-        "units": "imperial"
-    }
+    if onecall_data is None:
+        url = "https://api.openweathermap.org/data/3.0/onecall"
+        params = {
+            "lat": FARM_LAT,
+            "lon": FARM_LON,
+            "appid": api_key,
+            "units": "imperial",
+            "exclude": "minutely,hourly"
+        }
+        response = requests.get(url, params=params)
+        if response.status_code != 200:
+            print("Failed to get weather data")
+            return False
+        onecall_data = response.json()
 
-    response = requests.get(url, params=params)
-    if response.status_code != 200:
-        print("Failed to get weather data")
-        return False
-
-    data = response.json()
-    current_temp = data['main']['temp']
+    current_temp = onecall_data.get('current', {}).get('temp', 0)
 
     # Check planting window
     now = datetime.now()
