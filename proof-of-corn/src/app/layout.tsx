@@ -14,17 +14,24 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Proof of Corn",
-  description: "Can AI grow corn? A case study in autonomous orchestration.",
+  description: "Can AI grow corn? @fredwilson challenged @seth. This is our response. Real corn in Iowa, every decision made by Claude Code.",
+  metadataBase: new URL("https://proofofcorn.com"),
   openGraph: {
-    title: "Proof of Corn",
-    description: "Can AI grow corn? A case study in autonomous orchestration.",
+    title: "Can AI grow corn?",
+    description: "@fredwilson challenged @seth: AI can write code, but it can't affect the physical world. This is our response.",
     url: "https://proofofcorn.com",
+    siteName: "Proof of Corn",
+    locale: "en_US",
+    type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Proof of Corn",
-    description: "Can AI grow corn? A case study in autonomous orchestration.",
+    title: "Can AI grow corn?",
+    description: "@fredwilson challenged @seth: AI can write code, but it can't affect the physical world. This is our response.",
+    creator: "@seth",
   },
+  authors: [{ name: "Seth Goldstein", url: "https://x.com/seth" }],
+  keywords: ["AI", "agriculture", "Claude Code", "autonomous", "corn", "farming", "vibe coding"],
 };
 
 export default function RootLayout({
