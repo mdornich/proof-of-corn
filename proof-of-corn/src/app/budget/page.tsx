@@ -37,7 +37,7 @@ export default function BudgetPage() {
             <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
             <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
             <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
-            <Link href="/process" className="hidden sm:block hover:text-zinc-900 transition-colors">Process</Link>
+            <Link href="/fred" className="hover:text-zinc-900 transition-colors">Fred</Link>
             <Link href="/budget" className="text-zinc-900">Budget</Link>
           </nav>
         </div>

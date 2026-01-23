@@ -19,7 +19,7 @@ export default function StoryPage() {
             <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
             <Link href="/story" className="text-zinc-900">Story</Link>
             <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
-            <Link href="/process" className="hidden sm:block hover:text-zinc-900 transition-colors">Process</Link>
+            <Link href="/fred" className="hover:text-zinc-900 transition-colors">Fred</Link>
             <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
           </nav>
         </div>

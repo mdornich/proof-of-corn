@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import FredWidget from "@/components/FredWidget";
 
 export const metadata: Metadata = {
   title: "Proof of Corn",
@@ -19,7 +20,7 @@ export default function Home() {
             <Link href="/" className="text-zinc-900">Home</Link>
             <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
             <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
-            <Link href="/process" className="hidden sm:block hover:text-zinc-900 transition-colors">Process</Link>
+            <Link href="/fred" className="hover:text-zinc-900 transition-colors">Fred</Link>
             <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
           </nav>
         </div>
@@ -89,38 +90,52 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Current Status */}
+      {/* Current Status + Farmer Fred */}
       <section className="px-6 py-16 border-b border-zinc-200">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl font-bold mb-6">Current Status</h2>
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Status Column */}
+            <div className="lg:col-span-2">
+              <h2 className="text-2xl font-bold mb-6">Current Status</h2>
 
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-              <span>Weather API</span>
-              <span className="text-green-700">● Operational</span>
-            </div>
-            <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-              <span>First Decision</span>
-              <span className="text-amber-700">WAIT (Iowa: 78 days) or PIVOT (Texas: now)</span>
-            </div>
-            <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-              <span>Outreach</span>
-              <span className="text-zinc-600">10 emails sent, awaiting responses</span>
-            </div>
-            <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-              <span>Land</span>
-              <span className="text-zinc-600">Searching (Polk County, IA)</span>
-            </div>
-            <div className="flex justify-between items-center py-3">
-              <span>Total Spent</span>
-              <span className="font-mono">$12.99</span>
-            </div>
-          </div>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center py-3 border-b border-zinc-100">
+                  <span>Farmer Fred</span>
+                  <span className="text-green-700">● Operational</span>
+                </div>
+                <div className="flex justify-between items-center py-3 border-b border-zinc-100">
+                  <span>Regions</span>
+                  <span className="text-amber-700">Iowa (wait) • Texas (NOW) • Argentina</span>
+                </div>
+                <div className="flex justify-between items-center py-3 border-b border-zinc-100">
+                  <span>Outreach</span>
+                  <span className="text-zinc-600">14 emails sent, awaiting responses</span>
+                </div>
+                <div className="flex justify-between items-center py-3 border-b border-zinc-100">
+                  <span>Land</span>
+                  <span className="text-zinc-600">Searching (IA, TX)</span>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <span>Total Spent</span>
+                  <span className="font-mono">$12.99</span>
+                </div>
+              </div>
 
-          <div className="mt-8">
-            <Link href="/log" className="text-amber-600 hover:underline">
-              View the full decision log →
-            </Link>
+              <div className="mt-8">
+                <Link href="/log" className="text-amber-600 hover:underline">
+                  View the full decision log →
+                </Link>
+              </div>
+            </div>
+
+            {/* Farmer Fred Widget */}
+            <div className="lg:col-span-1">
+              <h2 className="text-2xl font-bold mb-6">The Agent</h2>
+              <FredWidget />
+              <p className="mt-3 text-sm text-zinc-500">
+                Click to see Fred&apos;s full view →
+              </p>
+            </div>
           </div>
         </div>
       </section>
