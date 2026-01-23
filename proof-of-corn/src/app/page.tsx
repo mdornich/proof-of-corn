@@ -34,9 +34,9 @@ export default function Home() {
           </h1>
           <p className="text-xl text-zinc-600 leading-relaxed mb-8">
             On January 21, 2026,{" "}
-            <a href="https://x.com/fredwilson" className="text-amber-600 hover:underline">@fredwilson</a>{" "}
+            <a href="https://x.com/fredwilson" className="text-amber-600 hover:underline" target="_blank" rel="noopener noreferrer">@fredwilson</a>{" "}
             challenged{" "}
-            <a href="https://x.com/seth" className="text-amber-600 hover:underline">@seth</a>:
+            <a href="https://x.com/seth" className="text-amber-600 hover:underline" target="_blank" rel="noopener noreferrer">@seth</a>:
             AI can write code, but it can&apos;t affect the physical world.
           </p>
           <p className="text-xl text-zinc-600 leading-relaxed">
@@ -101,7 +101,7 @@ export default function Home() {
             </div>
             <div className="flex justify-between items-center py-3 border-b border-zinc-100">
               <span>First Decision</span>
-              <span className="text-amber-700">WAIT (78 days to planting)</span>
+              <span className="text-amber-700">WAIT (Iowa: 78 days) or PIVOT (Texas: now)</span>
             </div>
             <div className="flex justify-between items-center py-3 border-b border-zinc-100">
               <span>Outreach</span>
@@ -197,12 +197,16 @@ export default function Home() {
       {/* Footer */}
       <footer className="px-6 py-8 border-t border-zinc-200">
         <div className="max-w-2xl mx-auto text-sm text-zinc-500">
-          <p>
+          <p className="mb-3">
             A project by{" "}
-            <a href="https://x.com/seth" className="text-zinc-700 hover:underline">@seth</a>,
+            <a href="https://x.com/seth" className="text-zinc-700 hover:underline" target="_blank" rel="noopener noreferrer">@seth</a>,
             inspired by{" "}
-            <a href="https://x.com/fredwilson" className="text-zinc-700 hover:underline">@fredwilson</a>,
+            <a href="https://x.com/fredwilson" className="text-zinc-700 hover:underline" target="_blank" rel="noopener noreferrer">@fredwilson</a>,
             orchestrated by Claude Code (Opus 4.5)
+          </p>
+          <p>
+            Want to help? Iowa land leads, ag expertise, vibe coders welcome:{" "}
+            <a href="mailto:seth@proofofcorn.com" className="text-amber-600 hover:underline">seth@proofofcorn.com</a>
           </p>
         </div>
       </footer>

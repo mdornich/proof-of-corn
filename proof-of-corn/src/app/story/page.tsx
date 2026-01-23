@@ -172,12 +172,16 @@ export default function StoryPage() {
       {/* Footer */}
       <footer className="px-6 py-8 border-t border-zinc-200">
         <div className="max-w-2xl mx-auto text-sm text-zinc-500">
-          <p>
+          <p className="mb-3">
             A project by{" "}
-            <a href="https://x.com/seth" className="text-zinc-700 hover:underline">@seth</a>,
+            <a href="https://x.com/seth" className="text-zinc-700 hover:underline" target="_blank" rel="noopener noreferrer">@seth</a>,
             inspired by{" "}
-            <a href="https://x.com/fredwilson" className="text-zinc-700 hover:underline">@fredwilson</a>,
+            <a href="https://x.com/fredwilson" className="text-zinc-700 hover:underline" target="_blank" rel="noopener noreferrer">@fredwilson</a>,
             orchestrated by Claude Code (Opus 4.5)
+          </p>
+          <p>
+            Want to help? Land leads, ag expertise, vibe coders welcome:{" "}
+            <a href="mailto:seth@proofofcorn.com" className="text-amber-600 hover:underline">seth@proofofcorn.com</a>
           </p>
         </div>
       </footer>
