@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import FredWidget from "@/components/FredWidget";
+import FredMiniWidget from "@/components/FredMiniWidget";
 
 export const metadata: Metadata = {
   title: "Proof of Corn",
@@ -10,19 +11,26 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#fafafa] text-zinc-900 font-serif">
-      {/* Header */}
-      <header className="border-b border-zinc-200 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex justify-between items-center">
-          <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
-            Proof of Corn
-          </Link>
-          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
-            <Link href="/" className="text-zinc-900">Home</Link>
-            <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
-            <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
-            <Link href="/fred" className="hover:text-zinc-900 transition-colors">Fred</Link>
-            <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
-          </nav>
+      {/* Header with Fred Mini Widget */}
+      <header className="border-b border-zinc-200 px-6 py-3 sticky top-0 bg-[#fafafa]/95 backdrop-blur-sm z-50">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
+              Proof of Corn
+            </Link>
+            <nav className="hidden sm:flex gap-4 text-xs md:text-sm text-zinc-500">
+              <Link href="/" className="text-zinc-900">Home</Link>
+              <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
+              <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
+              <Link href="/fred" className="hover:text-zinc-900 transition-colors">Fred</Link>
+              <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
+            </nav>
+          </div>
+          {/* Fred Mini Widget - always visible */}
+          <div className="flex items-center gap-3">
+            <span className="hidden md:block text-xs text-zinc-400">LIVE</span>
+            <FredMiniWidget />
+          </div>
         </div>
       </header>
 
