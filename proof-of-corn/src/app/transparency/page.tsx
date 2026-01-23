@@ -91,6 +91,26 @@ const faqs = [
     q: "What happens when something goes wrong that isn't in the documentation?",
     a: "Fred escalates to humans. The constitution defines what Fred can handle autonomously vs what needs approval. Novel situations get flagged. We're not claiming Fred can handle everything—we're building a human-AI collaboration framework."
   },
+  {
+    q: "What about prompt injection or security risks?",
+    a: "Valid concern. Fred's constitution includes guardrails: payment limits, approval requirements for contracts, and escalation triggers. We're adding explicit security principles. Fred can't drain funds or sign contracts without human approval."
+  },
+  {
+    q: "5 acres is too small to attract custom operators—won't they refuse?",
+    a: "Possibly. This is a known risk. We're pursuing multiple regions (Texas, Argentina) and multiple operators simultaneously. If no one will work 5 acres, that's a finding worth documenting. We may need to partner with existing operations."
+  },
+  {
+    q: "Why not just invest in corn futures instead?",
+    a: "Great suggestion from HN (bwestergard). We're adding a parallel experiment: Fred will track equivalent investment in commodity markets as a baseline comparison. If futures outperform, that's data."
+  },
+  {
+    q: "Shouldn't Fred also READ incoming emails, not just send them?",
+    a: "Yes! This is on the roadmap (suggested by divbzero on HN). Fred should field incoming responses, evaluate them, and escalate when needed. Two-way communication is next."
+  },
+  {
+    q: "What about seed selection, fertilizer, fungicides—real farming decisions?",
+    a: "Currently planned but not implemented. Fred's responsibilities will expand to include variety selection, input management, and pest/disease monitoring as we approach planting. These require land first."
+  },
 ];
 
 export default function TransparencyPage() {
@@ -241,6 +261,45 @@ export default function TransparencyPage() {
               >
                 View full constitution JSON →
               </a>
+            </p>
+          </section>
+
+          {/* Community-Suggested Roadmap */}
+          <section className="mb-16">
+            <h2 className="text-2xl font-bold mb-6">Community Roadmap</h2>
+            <p className="text-zinc-600 mb-6">
+              Ideas from HN and other feedback, prioritized by impact. This list updates as we learn.
+            </p>
+
+            <div className="space-y-4">
+              {[
+                { idea: "Fred reads incoming emails", source: "divbzero (HN)", status: "next", desc: "Two-way communication—Fred should field responses and escalate when needed" },
+                { idea: "Parallel commodities experiment", source: "bwestergard (HN)", status: "planned", desc: "Track equivalent investment in corn futures as baseline comparison" },
+                { idea: "IoT soil sensors", source: "tsunamifury (HN)", status: "planned", desc: "Real sensing to address 'hand in the dirt' limitation" },
+                { idea: "Seed variety selection logic", source: "bluGill (HN)", status: "planned", desc: "Fred should evaluate hybrid options based on conditions" },
+                { idea: "Indoor container alternative", source: "starkparker (HN)", status: "considering", desc: "More reproducible proof with microcontroller automation" },
+                { idea: "Multi-contractor coordination", source: "community", status: "later", desc: "True test: Fred manages multiple vendors over full season" },
+              ].map((item) => (
+                <div key={item.idea} className="bg-white border border-zinc-200 rounded-lg p-4 flex gap-4">
+                  <div className={`px-2 py-1 text-xs rounded h-fit ${
+                    item.status === "next" ? "bg-green-100 text-green-700" :
+                    item.status === "planned" ? "bg-amber-100 text-amber-700" :
+                    item.status === "considering" ? "bg-blue-100 text-blue-700" :
+                    "bg-zinc-100 text-zinc-600"
+                  }`}>
+                    {item.status}
+                  </div>
+                  <div>
+                    <p className="font-medium">{item.idea}</p>
+                    <p className="text-sm text-zinc-600">{item.desc}</p>
+                    <p className="text-xs text-zinc-400 mt-1">via {item.source}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-6 text-sm text-zinc-500">
+              Have an idea? <a href="mailto:seth@proofofcorn.com" className="text-amber-600 hover:underline">Email us</a> or comment on <a href="https://news.ycombinator.com/item?id=42735511" className="text-amber-600 hover:underline" target="_blank" rel="noopener noreferrer">Hacker News</a>.
             </p>
           </section>
 
