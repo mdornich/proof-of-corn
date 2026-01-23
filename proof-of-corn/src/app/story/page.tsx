@@ -148,10 +148,17 @@ export default function StoryPage() {
             </p>
 
             <p>
-              Fred, this one&apos;s for you.
+              Fred, this one&apos;s for you.*
             </p>
 
-            <div className="mt-16 pt-8 border-t border-zinc-200">
+            <p className="text-sm text-zinc-500 mt-8">
+              *We&apos;re not alone in this. <a href="https://soltomato.fun" className="text-amber-600 hover:underline" target="_blank" rel="noopener noreferrer">Sol Tomato</a> has
+              Claude directly controlling a tomato plant via IoT sensors. That&apos;s the &ldquo;robot farmer&rdquo; approach—AI
+              controlling hardware. Proof of Corn is the &ldquo;farm manager&rdquo; approach—AI orchestrating humans and services.
+              Both prove the same point: AI can affect the physical world. The vibe coding movement is just getting started.
+            </p>
+
+            <div className="mt-12 pt-8 border-t border-zinc-200">
               <p className="text-zinc-500">
                 — <a href="https://x.com/seth" className="text-amber-600 hover:underline">@seth</a>
                 <br />
