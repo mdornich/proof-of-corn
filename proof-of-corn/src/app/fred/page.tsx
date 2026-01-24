@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import PageLayout from "@/components/PageLayout";
 
 interface WeatherData {
   region: string;
@@ -129,29 +129,12 @@ export default function FredPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-zinc-900 font-serif">
-      {/* Header */}
-      <header className="border-b border-zinc-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
-            Proof of Corn
-          </Link>
-          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
-            <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
-            <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
-            <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
-            <Link href="/fred" className="text-zinc-900">Fred</Link>
-            <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="px-6 py-12">
+    <PageLayout
+      title="Farmer Fred"
+      subtitle="Autonomous agricultural agent • Walking the fields"
+    >
+      <main className="px-6 py-8">
         <div className="max-w-4xl mx-auto">
-          <p className="text-amber-700 text-sm tracking-wide mb-4">LIVE VIEW</p>
-          <h1 className="text-3xl font-bold mb-2">Farmer Fred</h1>
-          <p className="text-zinc-500 mb-8">Autonomous agricultural agent • Walking the fields</p>
 
           {/* The Tandoori Oven Window */}
           <div className="bg-gradient-to-b from-sky-100 to-green-100 border-4 border-amber-800 rounded-lg overflow-hidden shadow-2xl">
@@ -442,26 +425,7 @@ export default function FredPage() {
           </div>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="px-6 py-8 border-t border-zinc-200 mt-12">
-        <div className="max-w-4xl mx-auto text-sm text-zinc-500">
-          <p className="mb-3">
-            Farmer Fred runs on Cloudflare Workers, makes decisions with Claude, and checks in daily at 6 AM UTC.
-          </p>
-          <p>
-            <a
-              href="https://farmer-fred.sethgoldstein.workers.dev"
-              className="text-amber-600 hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View Fred&apos;s API →
-            </a>
-          </p>
-        </div>
-      </footer>
-    </div>
+    </PageLayout>
   );
 }
 

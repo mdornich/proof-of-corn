@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import Link from "next/link";
+import PageLayout from "@/components/PageLayout";
 
 export const metadata: Metadata = {
   title: "The Log | Proof of Corn",
@@ -91,7 +91,7 @@ const logEntries = [
   {
     timestamp: "2026-01-23T08:30:00Z",
     category: "milestone",
-    title: "Fred's blog post live",
+    title: "Fred Wilson's blog post live",
     description: "Fred Wilson published 'Can AI Grow Corn?' to 37K+ subscribers on avc.xyz. Traffic incoming. 24+ likes on Farcaster within first hour.",
     cost: 0,
     aiDecision: false,
@@ -148,7 +148,7 @@ const logEntries = [
     timestamp: "2026-01-22T23:45:00Z",
     category: "infrastructure",
     title: "Site ready for traffic",
-    description: "UX polish, email CTA added, security attributes on links, mobile optimizations. Ready for Fred's 40K readers.",
+    description: "UX polish, email CTA added, security attributes on links, mobile optimizations. Ready for Fred Wilson's 40K readers.",
     cost: 0,
     aiDecision: true,
   },
@@ -260,6 +260,7 @@ const categoryStyles: Record<string, string> = {
   outreach: "bg-orange-50 text-orange-700",
   agent: "bg-violet-50 text-violet-700",
   milestone: "bg-rose-50 text-rose-700",
+  lead: "bg-green-50 text-green-700",
 };
 
 function formatTimestamp(iso: string): string {
@@ -277,34 +278,14 @@ export default function LogPage() {
   const aiDecisions = logEntries.filter(e => e.aiDecision).length;
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-zinc-900 font-serif">
-      {/* Header */}
-      <header className="border-b border-zinc-200 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex justify-between items-center">
-          <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
-            Proof of Corn
-          </Link>
-          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
-            <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
-            <Link href="/story" className="hover:text-zinc-900 transition-colors">Story</Link>
-            <Link href="/log" className="text-zinc-900">Log</Link>
-            <Link href="/fred" className="hover:text-zinc-900 transition-colors">Fred</Link>
-            <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
-          </nav>
-        </div>
-      </header>
-
-      {/* Hero */}
-      <section className="px-6 py-12 border-b border-zinc-200">
-        <div className="max-w-2xl mx-auto">
-          <p className="text-amber-700 text-sm tracking-wide mb-4">REAL-TIME CHRONICLE</p>
-          <h1 className="text-3xl font-bold mb-2">The Log</h1>
-          <p className="text-zinc-600 mb-8">
-            Every decision. Every API call. Every dollar. Documented as it happens.
-          </p>
-
+    <PageLayout
+      title="The Log"
+      subtitle="Every decision. Every API call. Every dollar. Documented as it happens."
+    >
+      <div className="px-6 py-8">
+        <div className="max-w-4xl mx-auto">
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
               <p className="text-2xl font-bold">{logEntries.length}</p>
               <p className="text-sm text-zinc-500">entries</p>
@@ -318,13 +299,9 @@ export default function LogPage() {
               <p className="text-sm text-zinc-500">spent</p>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Log Entries */}
-      <section className="px-6 py-12">
-        <div className="max-w-2xl mx-auto">
-          <div className="space-y-6">
+          {/* Log Entries */}
+          <div className="space-y-4">
             {logEntries.map((entry, i) => (
               <div
                 key={i}
@@ -359,24 +336,7 @@ export default function LogPage() {
             ))}
           </div>
         </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="px-6 py-8 border-t border-zinc-200">
-        <div className="max-w-2xl mx-auto text-sm text-zinc-500">
-          <p className="mb-3">
-            A project by{" "}
-            <a href="https://x.com/seth" className="text-zinc-700 hover:underline" target="_blank" rel="noopener noreferrer">@seth</a>,
-            inspired by{" "}
-            <a href="https://x.com/fredwilson" className="text-zinc-700 hover:underline" target="_blank" rel="noopener noreferrer">@fredwilson</a>,
-            orchestrated by Claude Code (Opus 4.5)
-          </p>
-          <p>
-            Want to help? Land leads, ag expertise, vibe coders welcome:{" "}
-            <a href="mailto:fred@proofofcorn.com" className="text-amber-600 hover:underline">fred@proofofcorn.com</a>
-          </p>
-        </div>
-      </footer>
-    </div>
+      </div>
+    </PageLayout>
   );
 }

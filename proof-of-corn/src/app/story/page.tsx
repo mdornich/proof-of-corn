@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import Link from "next/link";
+import PageLayout from "@/components/PageLayout";
 
 export const metadata: Metadata = {
   title: "The Story | Proof of Corn",
@@ -8,30 +8,12 @@ export const metadata: Metadata = {
 
 export default function StoryPage() {
   return (
-    <div className="min-h-screen bg-[#fafafa] text-zinc-900 font-serif">
-      {/* Header */}
-      <header className="border-b border-zinc-200 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex justify-between items-center">
-          <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
-            Proof of Corn
-          </Link>
-          <nav className="flex gap-3 md:gap-6 text-xs md:text-sm text-zinc-500">
-            <Link href="/" className="hover:text-zinc-900 transition-colors">Home</Link>
-            <Link href="/story" className="text-zinc-900">Story</Link>
-            <Link href="/log" className="hover:text-zinc-900 transition-colors">Log</Link>
-            <Link href="/fred" className="hover:text-zinc-900 transition-colors">Fred</Link>
-            <Link href="/budget" className="hover:text-zinc-900 transition-colors">Budget</Link>
-          </nav>
-        </div>
-      </header>
-
-      {/* Content */}
-      <article className="px-6 py-16">
+    <PageLayout
+      title="A Walk in San Francisco"
+      subtitle="January 21, 2026 · 8:15 PM"
+    >
+      <article className="px-6 py-12">
         <div className="max-w-2xl mx-auto">
-          <p className="text-amber-700 text-sm tracking-wide mb-4">THE ORIGIN</p>
-          <h1 className="text-3xl font-bold mb-2">A Walk in San Francisco</h1>
-          <p className="text-zinc-500 mb-12">January 21, 2026 &middot; 8:15 PM</p>
-
           <div className="prose-clean text-zinc-700">
             <p>
               It started with dinner. House of Nanking on Kearny Street, around 7pm on a
@@ -168,23 +150,6 @@ export default function StoryPage() {
           </div>
         </div>
       </article>
-
-      {/* Footer */}
-      <footer className="px-6 py-8 border-t border-zinc-200">
-        <div className="max-w-2xl mx-auto text-sm text-zinc-500">
-          <p className="mb-3">
-            A project by{" "}
-            <a href="https://x.com/seth" className="text-zinc-700 hover:underline" target="_blank" rel="noopener noreferrer">@seth</a>,
-            inspired by{" "}
-            <a href="https://x.com/fredwilson" className="text-zinc-700 hover:underline" target="_blank" rel="noopener noreferrer">@fredwilson</a>,
-            orchestrated by Claude Code (Opus 4.5)
-          </p>
-          <p>
-            Want to help? Land leads, ag expertise, vibe coders welcome:{" "}
-            <a href="mailto:fred@proofofcorn.com" className="text-amber-600 hover:underline">fred@proofofcorn.com</a>
-          </p>
-        </div>
-      </footer>
-    </div>
+    </PageLayout>
   );
 }
