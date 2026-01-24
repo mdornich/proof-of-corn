@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import FredMiniWidget from './FredMiniWidget';
 
 interface PageLayoutProps {
@@ -12,14 +13,15 @@ interface PageLayoutProps {
 
 export default function PageLayout({ children, title, subtitle }: PageLayoutProps) {
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Simplified, focused navigation
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/story', label: 'Story' },
     { href: '/fred', label: 'Fred' },
-    { href: '/vision', label: 'Vision' },
-    { href: '/community', label: 'Community' },
     { href: '/log', label: 'Log' },
+    { href: '/dashboard', label: 'Dashboard' },
   ];
 
   return (
@@ -31,12 +33,13 @@ export default function PageLayout({ children, title, subtitle }: PageLayoutProp
             <Link href="/" className="font-bold hover:text-amber-600 transition-colors">
               Proof of Corn
             </Link>
+            {/* Desktop nav */}
             <nav className="hidden sm:flex gap-4 text-xs md:text-sm text-zinc-500">
               {navLinks.map(({ href, label }) => (
                 <Link
                   key={href}
                   href={href}
-                  className={pathname === href ? 'text-zinc-900' : 'hover:text-zinc-900 transition-colors'}
+                  className={pathname === href ? 'text-zinc-900 font-medium' : 'hover:text-zinc-900 transition-colors'}
                 >
                   {label}
                 </Link>
@@ -46,8 +49,37 @@ export default function PageLayout({ children, title, subtitle }: PageLayoutProp
           <div className="flex items-center gap-3">
             <span className="hidden md:block text-xs text-zinc-400">LIVE</span>
             <FredMiniWidget />
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="sm:hidden p-1 text-zinc-500"
+              aria-label="Menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {mobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
           </div>
         </div>
+        {/* Mobile nav dropdown */}
+        {mobileMenuOpen && (
+          <nav className="sm:hidden mt-3 pt-3 border-t border-zinc-200 flex flex-col gap-2">
+            {navLinks.map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`py-2 px-1 ${pathname === href ? 'text-zinc-900 font-medium' : 'text-zinc-500'}`}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        )}
       </header>
 
       {/* Page Title */}

@@ -22,7 +22,9 @@
       "Bash(ls:*)",
       "Bash(xargs:*)",
       "Bash(git reset:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm run deploy:*)",
+      "Bash(vercel --prod:*)"
     ]
   }
 }
