@@ -1,221 +1,21 @@
-import { Metadata } from "next";
+'use client';
+
+import { useEffect, useState } from 'react';
 import PageLayout from "@/components/PageLayout";
 
-export const metadata: Metadata = {
-  title: "The Log | Proof of Corn",
-  description: "A real-time chronicle of every decision, every API call, every step toward growing corn with AI.",
-};
+const FRED_API = 'https://farmer-fred.sethgoldstein.workers.dev';
 
-// Log entries - will be pulled from database/API eventually
-const logEntries = [
-  {
-    timestamp: "2026-01-24T17:19:00Z",
-    category: "outreach",
-    title: "FRED ACTS: 3 personalized emails sent",
-    description: "Fred autonomously composed and sent personalized responses to: Chad (Nebraska, 160 acres), David Corcoran (Purdue + Indiana farmer), David Campey (Zimbabwe farm with corn in ground). Each email tailored to their specific situation with 70/30 revenue share offer.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-24T17:15:00Z",
-    category: "agent",
-    title: "Task queue + Autonomous action system live",
-    description: "Fred now has /inbox, /tasks, /send, and /act endpoints. Can read emails, maintain task queue, send emails via Resend, and autonomously decide what to do next. Fred is no longer just monitoring - he's acting.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-24T08:00:00Z",
-    category: "milestone",
-    title: "HN reaches 437 points, 290 comments",
-    description: "Proof of Corn hit #1 on Hacker News. Community feedback overwhelmingly positive. Top themes: AI, agriculture, autonomy, scale. 114k+ API requests handled.",
-    cost: 0,
-    aiDecision: false,
-  },
-  {
-    timestamp: "2026-01-24T07:30:00Z",
-    category: "lead",
-    title: "HOT LEAD: Chad from Nebraska",
-    description: "Farmer's son with 160 acres near Grand Island, Nebraska reached out. Reply sent offering 1-5 acre pilot, 70/30 revenue share. Potential game-changer.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-24T06:00:00Z",
-    category: "infrastructure",
-    title: "Email system operational",
-    description: "fred@proofofcorn.com now receives and categorizes emails. Resend integration for sending. Fred can communicate directly with farmers and partners.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-24T05:00:00Z",
-    category: "infrastructure",
-    title: "Vision page + 3D worlds deployed",
-    description: "World Labs 3D visualizations for Iowa, Texas, and Argentina. Each region shows planned field layout, sensor grids, irrigation systems. Fred can see his future fields.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-24T04:00:00Z",
-    category: "infrastructure",
-    title: "Weather API fixed",
-    description: "Switched from rate-limited Open-Meteo to OpenWeatherMap 2.5. Real weather data flowing: Iowa -5°F (frozen), Texas 70°F (planting window!), Argentina 74°F.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-24T03:00:00Z",
-    category: "infrastructure",
-    title: "Stats dashboard live",
-    description: "Real-time HN tracking, traffic estimates, Fred status. Community page added with sentiment analysis and discussion themes.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-23T21:00:00Z",
-    category: "milestone",
-    title: "HN hits #1",
-    description: "Proof of Corn reached #1 on Hacker News front page. Traffic spike: Cloudflare upgraded to handle 114k+ requests. Vercel Pro activated.",
-    cost: 25,
-    aiDecision: false,
-  },
-  {
-    timestamp: "2026-01-23T16:45:00Z",
-    category: "infrastructure",
-    title: "Vercel Analytics deployed",
-    description: "Traffic tracking now live. Monitoring visitors from Fred's 37K subscriber blog post.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-23T08:30:00Z",
-    category: "milestone",
-    title: "Fred Wilson's blog post live",
-    description: "Fred Wilson published 'Can AI Grow Corn?' to 37K+ subscribers on avc.xyz. Traffic incoming. 24+ likes on Farcaster within first hour.",
-    cost: 0,
-    aiDecision: false,
-  },
-  {
-    timestamp: "2026-01-23T03:45:00Z",
-    category: "agent",
-    title: "Farmer Fred registration JSON created",
-    description: "ERC-8004 token registration metadata complete. Constitution, autonomy levels, economics (10% agent / 60% ops / 20% food bank / 10% reserve), and multi-region operations defined.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-23T03:30:00Z",
-    category: "outreach",
-    title: "Argentina outreach sent",
-    description: "Email to AAPRESID (regenerative farming network in Córdoba). Auto-reply received - will follow up with correct contact.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-23T03:15:00Z",
-    category: "outreach",
-    title: "Texas outreach sent (3 emails)",
-    description: "Contacted Brad Cowan (Hidalgo County AgriLife), Marco Ponce (Cameron County AgriLife), and Texas Corn Producers Association. Planting window is NOW.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-23T02:30:00Z",
-    category: "research",
-    title: "Argentina research complete",
-    description: "Year-round production possible. Córdoba Province: $135-240/acre, 90% no-till adoption. September-January planting = Southern hemisphere hedge.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-23T01:00:00Z",
-    category: "agent",
-    title: "Farmer Fred specification created",
-    description: "Comprehensive agent spec: constitution (6 principles), decision framework, autonomy levels, geographic strategy (Iowa/Texas/Argentina), environmental footprint commitments.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T23:50:00Z",
-    category: "research",
-    title: "Texas pivot option identified",
-    description: "South Texas plants corn late January - we could have corn in the ground NOW instead of waiting 78 days for Iowa. Dual-path strategy adopted.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T23:45:00Z",
-    category: "infrastructure",
-    title: "Site ready for traffic",
-    description: "UX polish, email CTA added, security attributes on links, mobile optimizations. Ready for Fred Wilson's 40K readers.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T22:30:00Z",
-    category: "outreach",
-    title: "10 outreach emails sent",
-    description: "Comprehensive outreach to Iowa ag ecosystem: extension offices, land matching programs, seed suppliers, satellite providers.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T22:25:00Z",
-    category: "code",
-    title: "Daily check script operational",
-    description: "Created daily_check.py - automated weather monitoring and planting decision logging.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T22:20:00Z",
-    category: "infrastructure",
-    title: "Added /process page",
-    description: "New page documenting the autonomous collaboration method.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T22:15:00Z",
-    category: "farming",
-    title: "FIRST DECISION: Wait for planting window",
-    description: "Claude analyzed Des Moines weather: 25°F, 78 days until optimal planting window. Decision: WAIT.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T22:10:00Z",
-    category: "infrastructure",
-    title: "Weather API operational",
-    description: "OpenWeatherMap One Call 3.0 API fully operational. Real-time Des Moines weather data flowing.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T21:55:00Z",
-    category: "infrastructure",
-    title: "Email forwarding configured",
-    description: "fred@proofofcorn.com now forwards to Gmail.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T21:40:00Z",
-    category: "infrastructure",
-    title: "GitHub repo created",
-    description: "Public repository at github.com/brightseth/proof-of-corn.",
-    cost: 0,
-    aiDecision: true,
-  },
-  {
-    timestamp: "2026-01-22T21:30:00Z",
-    category: "research",
-    title: "Iowa infrastructure research complete",
-    description: "Custom rates ($150-168/acre), land costs ($274/acre), planting window (Apr 11 - May 18).",
-    cost: 0,
-    aiDecision: true,
-  },
+interface LogEntry {
+  timestamp: string;
+  category: string;
+  title: string;
+  description: string;
+  cost?: number;
+  aiDecision?: boolean;
+}
+
+// Curated founding entries - the historical record of how this started
+const foundingEntries: LogEntry[] = [
   {
     timestamp: "2026-01-22T20:55:00Z",
     category: "infrastructure",
@@ -273,9 +73,52 @@ function formatTimestamp(iso: string): string {
   });
 }
 
+function formatRelativeTime(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+}
+
 export default function LogPage() {
-  const totalCost = logEntries.reduce((sum, entry) => sum + (entry.cost || 0), 0);
-  const aiDecisions = logEntries.filter(e => e.aiDecision).length;
+  const [liveEntries, setLiveEntries] = useState<LogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+
+  const fetchLogs = async () => {
+    try {
+      const res = await fetch(`${FRED_API}/log`);
+      if (res.ok) {
+        const data = await res.json();
+        setLiveEntries(data.logs || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch logs:', e);
+    }
+    setLoading(false);
+    setLastRefresh(new Date());
+  };
+
+  useEffect(() => {
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  // Combine live entries with founding entries, sorted by timestamp (newest first)
+  const allEntries = [...liveEntries, ...foundingEntries].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+
+  const totalCost = allEntries.reduce((sum, entry) => sum + (entry.cost || 0), 0);
+  const aiDecisions = allEntries.filter(e => e.aiDecision).length;
 
   return (
     <PageLayout
@@ -284,10 +127,35 @@ export default function LogPage() {
     >
       <div className="px-6 py-8">
         <div className="max-w-4xl mx-auto">
+          {/* Live indicator + refresh */}
+          <div className="flex items-center justify-between mb-6 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              <span className="text-zinc-500">
+                Live from Fred&apos;s API
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-zinc-400 text-xs">
+                Updated {formatRelativeTime(lastRefresh.toISOString())}
+              </span>
+              <button
+                onClick={fetchLogs}
+                disabled={loading}
+                className="px-3 py-1 bg-zinc-100 hover:bg-zinc-200 rounded text-xs transition-colors"
+              >
+                {loading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold">{logEntries.length}</p>
+              <p className="text-2xl font-bold">{allEntries.length}</p>
               <p className="text-sm text-zinc-500">entries</p>
             </div>
             <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
@@ -302,38 +170,70 @@ export default function LogPage() {
 
           {/* Log Entries */}
           <div className="space-y-4">
-            {logEntries.map((entry, i) => (
-              <div
-                key={i}
-                className="bg-white border border-zinc-200 rounded-lg p-5"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-1 rounded ${categoryStyles[entry.category] || "bg-zinc-100 text-zinc-700"}`}>
-                      {entry.category}
-                    </span>
-                    {entry.aiDecision && (
-                      <span className="text-xs px-2 py-1 rounded bg-amber-50 text-amber-700">
-                        AI
+            {loading && liveEntries.length === 0 ? (
+              <div className="text-center py-12 text-zinc-500">
+                Loading Fred&apos;s activity log...
+              </div>
+            ) : (
+              allEntries.map((entry, i) => {
+                const isRecent = new Date(entry.timestamp).getTime() > Date.now() - 3600000; // Last hour
+                return (
+                  <div
+                    key={`${entry.timestamp}-${i}`}
+                    className={`bg-white border rounded-lg p-5 ${
+                      isRecent ? 'border-amber-200 ring-1 ring-amber-100' : 'border-zinc-200'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-1 rounded ${categoryStyles[entry.category] || "bg-zinc-100 text-zinc-700"}`}>
+                          {entry.category}
+                        </span>
+                        {entry.aiDecision && (
+                          <span className="text-xs px-2 py-1 rounded bg-amber-50 text-amber-700">
+                            AI
+                          </span>
+                        )}
+                        {isRecent && (
+                          <span className="text-xs px-2 py-1 rounded bg-green-50 text-green-700">
+                            recent
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-zinc-400 font-mono">
+                        {formatTimestamp(entry.timestamp)}
                       </span>
+                    </div>
+
+                    <h3 className="font-bold mb-1">{entry.title}</h3>
+                    <p className="text-zinc-600 text-sm whitespace-pre-wrap">
+                      {entry.description.length > 500
+                        ? entry.description.slice(0, 500) + '...'
+                        : entry.description}
+                    </p>
+
+                    {(entry.cost ?? 0) > 0 && (
+                      <p className="mt-3 text-sm">
+                        <span className="text-zinc-500">Cost:</span>{" "}
+                        <span className="font-mono text-amber-700">${(entry.cost ?? 0).toFixed(2)}</span>
+                      </p>
                     )}
                   </div>
-                  <span className="text-xs text-zinc-400 font-mono">
-                    {formatTimestamp(entry.timestamp)}
-                  </span>
-                </div>
+                );
+              })
+            )}
+          </div>
 
-                <h3 className="font-bold mb-1">{entry.title}</h3>
-                <p className="text-zinc-600 text-sm">{entry.description}</p>
-
-                {entry.cost > 0 && (
-                  <p className="mt-3 text-sm">
-                    <span className="text-zinc-500">Cost:</span>{" "}
-                    <span className="font-mono text-amber-700">${entry.cost.toFixed(2)}</span>
-                  </p>
-                )}
-              </div>
-            ))}
+          {/* API Link */}
+          <div className="mt-8 text-center">
+            <a
+              href={`${FRED_API}/log`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-amber-600 hover:underline"
+            >
+              View raw API data →
+            </a>
           </div>
         </div>
       </div>
