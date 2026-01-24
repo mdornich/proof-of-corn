@@ -67,6 +67,7 @@ export async function fetchAllRegionsWeather(
 
 /**
  * Fetch weather for a specific region
+ * Uses OpenWeatherMap 2.5 API (free tier)
  */
 export async function fetchRegionWeather(
   apiKey: string,
@@ -74,24 +75,145 @@ export async function fetchRegionWeather(
   lat: number,
   lon: number
 ): Promise<RegionWeather> {
-  const url = `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial&exclude=minutely,hourly,alerts`;
+  // Use OpenWeatherMap 2.5 API (free tier, up to 1000 calls/day)
+  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial`;
+
+  console.log(`[Weather] Fetching OWM 2.5 for ${regionName}`);
 
   const response = await fetch(url);
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Weather] OWM 2.5 error: ${response.status} - ${errorText}`);
     throw new Error(`Weather API error: ${response.status}`);
   }
 
-  const data: OpenWeatherResponse = await response.json();
+  const data = await response.json();
 
-  // Calculate planting viability
+  const temp = data.main?.temp || 0;
+  const humidity = data.main?.humidity || 0;
+  const conditions = data.weather?.[0]?.description || "Unknown";
+
+  const soilTempEstimate = estimateSoilTemperature(temp);
+  const frostRisk = temp < 36;
+  const plantingViable = soilTempEstimate >= 50 && !frostRisk;
+
+  // Simple forecast message based on current conditions
+  const forecast = frostRisk
+    ? `Current: ${Math.round(temp)}°F. FROST RISK present.`
+    : `Current: ${Math.round(temp)}°F. Conditions: ${conditions}.`;
+
+  return {
+    region: regionName,
+    temperature: Math.round(temp),
+    humidity: Math.round(humidity),
+    conditions,
+    forecast,
+    plantingViable,
+    frostRisk,
+    soilTempEstimate: Math.round(soilTempEstimate)
+  };
+}
+
+/**
+ * Fetch from Open-Meteo (free API, no key required)
+ */
+async function fetchFromOpenMeteo(
+  regionName: string,
+  lat: number,
+  lon: number
+): Promise<RegionWeather> {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`;
+
+  console.log(`[Weather] Fetching Open-Meteo for ${regionName}: ${url}`);
+
+  const response = await fetch(url);
+  console.log(`[Weather] Open-Meteo response status: ${response.status}`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Weather] Open-Meteo error: ${errorText}`);
+    throw new Error(`Open-Meteo API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log(`[Weather] Open-Meteo data for ${regionName}:`, JSON.stringify(data.current));
+
+  const temp = data.current?.temperature_2m || 0;
+  const humidity = data.current?.relative_humidity_2m || 0;
+  const weatherCode = data.current?.weather_code || 0;
+  const conditions = weatherCodeToDescription(weatherCode);
+
+  const soilTempEstimate = estimateSoilTemperature(temp);
+
+  // Check frost risk from daily data
+  const dailyMins = data.daily?.temperature_2m_min || [];
+  const frostRisk = temp < 36 || dailyMins.some((t: number) => t < 32);
+
+  const plantingViable = soilTempEstimate >= 50 && !frostRisk;
+
+  // Build forecast from daily data
+  const dailyMaxs = data.daily?.temperature_2m_max || [];
+  const avgHigh = dailyMaxs.length > 0 ? dailyMaxs.reduce((a: number, b: number) => a + b, 0) / dailyMaxs.length : 0;
+  const avgLow = dailyMins.length > 0 ? dailyMins.reduce((a: number, b: number) => a + b, 0) / dailyMins.length : 0;
+
+  const forecast = `7-day outlook: Highs ${Math.round(avgHigh)}°F, Lows ${Math.round(avgLow)}°F. ${
+    frostRisk ? "FROST RISK present." : "No frost expected."
+  }`;
+
+  return {
+    region: regionName,
+    temperature: Math.round(temp),
+    humidity: Math.round(humidity),
+    conditions,
+    forecast,
+    plantingViable,
+    frostRisk,
+    soilTempEstimate: Math.round(soilTempEstimate)
+  };
+}
+
+/**
+ * Convert WMO weather code to description
+ */
+function weatherCodeToDescription(code: number): string {
+  const codes: Record<number, string> = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Foggy",
+    48: "Depositing rime fog",
+    51: "Light drizzle",
+    53: "Moderate drizzle",
+    55: "Dense drizzle",
+    61: "Slight rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    71: "Slight snow",
+    73: "Moderate snow",
+    75: "Heavy snow",
+    77: "Snow grains",
+    80: "Slight rain showers",
+    81: "Moderate rain showers",
+    82: "Violent rain showers",
+    85: "Slight snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail",
+  };
+  return codes[code] || "Unknown";
+}
+
+/**
+ * Process OpenWeatherMap data
+ */
+function processOpenWeatherData(regionName: string, data: OpenWeatherResponse): RegionWeather {
   const temp = data.current.temp;
   const soilTempEstimate = estimateSoilTemperature(temp);
   const frostRisk = temp < 36 || data.daily.some(d => d.temp.min < 32);
-
-  // Corn needs soil temp > 50°F for germination
   const plantingViable = soilTempEstimate >= 50 && !frostRisk;
 
-  // Build 7-day forecast summary
   const forecastDays = data.daily.slice(0, 7);
   const avgHigh = forecastDays.reduce((sum, d) => sum + d.temp.max, 0) / 7;
   const avgLow = forecastDays.reduce((sum, d) => sum + d.temp.min, 0) / 7;

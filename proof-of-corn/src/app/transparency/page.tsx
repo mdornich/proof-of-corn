@@ -299,7 +299,7 @@ export default function TransparencyPage() {
             </div>
 
             <p className="mt-6 text-sm text-zinc-500">
-              Have an idea? <a href="mailto:seth@proofofcorn.com" className="text-amber-600 hover:underline">Email us</a> or comment on <a href="https://news.ycombinator.com/item?id=42735511" className="text-amber-600 hover:underline" target="_blank" rel="noopener noreferrer">Hacker News</a>.
+              Have an idea? <a href="mailto:fred@proofofcorn.com" className="text-amber-600 hover:underline">Email us</a> or comment on <a href="https://news.ycombinator.com/item?id=42735511" className="text-amber-600 hover:underline" target="_blank" rel="noopener noreferrer">Hacker News</a>.
             </p>
           </section>
 
@@ -339,7 +339,7 @@ export default function TransparencyPage() {
         <div className="max-w-3xl mx-auto text-sm text-zinc-500">
           <p className="mb-3">
             Questions? Criticisms? Ideas?{" "}
-            <a href="mailto:seth@proofofcorn.com" className="text-amber-600 hover:underline">seth@proofofcorn.com</a>
+            <a href="mailto:fred@proofofcorn.com" className="text-amber-600 hover:underline">fred@proofofcorn.com</a>
           </p>
           <p>
             <a href="https://github.com/brightseth/proof-of-corn" className="text-amber-600 hover:underline" target="_blank" rel="noopener noreferrer">

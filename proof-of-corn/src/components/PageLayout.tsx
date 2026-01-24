@@ -16,10 +16,10 @@ export default function PageLayout({ children, title, subtitle }: PageLayoutProp
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/story', label: 'Story' },
-    { href: '/log', label: 'Log' },
     { href: '/fred', label: 'Fred' },
+    { href: '/vision', label: 'Vision' },
+    { href: '/log', label: 'Log' },
     { href: '/stats', label: 'Stats' },
-    { href: '/budget', label: 'Budget' },
   ];
 
   return (

@@ -124,7 +124,7 @@ const logEntries = [
     timestamp: "2026-01-22T21:55:00Z",
     category: "infrastructure",
     title: "Email forwarding configured",
-    description: "seth@proofofcorn.com now forwards to Gmail.",
+    description: "fred@proofofcorn.com now forwards to Gmail.",
     cost: 0,
     aiDecision: true,
   },
@@ -301,7 +301,7 @@ export default function LogPage() {
           </p>
           <p>
             Want to help? Land leads, ag expertise, vibe coders welcome:{" "}
-            <a href="mailto:seth@proofofcorn.com" className="text-amber-600 hover:underline">seth@proofofcorn.com</a>
+            <a href="mailto:fred@proofofcorn.com" className="text-amber-600 hover:underline">fred@proofofcorn.com</a>
           </p>
         </div>
       </footer>

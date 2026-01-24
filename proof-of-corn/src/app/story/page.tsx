@@ -181,7 +181,7 @@ export default function StoryPage() {
           </p>
           <p>
             Want to help? Land leads, ag expertise, vibe coders welcome:{" "}
-            <a href="mailto:seth@proofofcorn.com" className="text-amber-600 hover:underline">seth@proofofcorn.com</a>
+            <a href="mailto:fred@proofofcorn.com" className="text-amber-600 hover:underline">fred@proofofcorn.com</a>
           </p>
         </div>
       </footer>

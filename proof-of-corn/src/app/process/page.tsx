@@ -75,7 +75,7 @@ export default function ProcessPage() {
               <li>Made first farming decision: WAIT (78 days to planting window)</li>
               <li>Wrote ESP32 sensor firmware</li>
               <li>Created sensor shopping list and ThingsBoard setup guide</li>
-              <li>Set up email forwarding for seth@proofofcorn.com</li>
+              <li>Set up email forwarding for fred@proofofcorn.com</li>
             </ul>
 
             <h2 className="text-xl font-bold mt-12 mb-4">What This Means</h2>

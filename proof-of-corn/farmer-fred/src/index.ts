@@ -104,6 +104,16 @@ export default {
         case "/hn":
           return await handleHN(env, corsHeaders);
 
+        case "/weather-test":
+          try {
+            const testUrl = "https://api.open-meteo.com/v1/forecast?latitude=41.59&longitude=-93.62&current=temperature_2m&temperature_unit=fahrenheit";
+            const testRes = await fetch(testUrl);
+            const testData = await testRes.json();
+            return json({ success: true, status: testRes.status, data: testData }, corsHeaders);
+          } catch (e) {
+            return json({ success: false, error: String(e) }, corsHeaders);
+          }
+
         default:
           return json({ error: "Not found", path }, corsHeaders, 404);
       }
