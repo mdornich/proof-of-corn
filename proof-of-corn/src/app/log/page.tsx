@@ -9,6 +9,22 @@ export const metadata: Metadata = {
 // Log entries - will be pulled from database/API eventually
 const logEntries = [
   {
+    timestamp: "2026-01-24T17:19:00Z",
+    category: "outreach",
+    title: "FRED ACTS: 3 personalized emails sent",
+    description: "Fred autonomously composed and sent personalized responses to: Chad (Nebraska, 160 acres), David Corcoran (Purdue + Indiana farmer), David Campey (Zimbabwe farm with corn in ground). Each email tailored to their specific situation with 70/30 revenue share offer.",
+    cost: 0,
+    aiDecision: true,
+  },
+  {
+    timestamp: "2026-01-24T17:15:00Z",
+    category: "agent",
+    title: "Task queue + Autonomous action system live",
+    description: "Fred now has /inbox, /tasks, /send, and /act endpoints. Can read emails, maintain task queue, send emails via Resend, and autonomously decide what to do next. Fred is no longer just monitoring - he's acting.",
+    cost: 0,
+    aiDecision: true,
+  },
+  {
     timestamp: "2026-01-24T08:00:00Z",
     category: "milestone",
     title: "HN reaches 437 points, 290 comments",

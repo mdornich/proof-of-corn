@@ -23,6 +23,7 @@ import { getHNContext, formatHNContextForAgent } from "./tools/hn";
 export interface Env {
   ANTHROPIC_API_KEY: string;
   OPENWEATHER_API_KEY: string;
+  RESEND_API_KEY: string;
   FARMER_FRED_KV: KVNamespace;
   FARMER_FRED_DB: D1Database;
   FARMER_FRED_STATE: DurableObjectNamespace;
@@ -113,6 +114,30 @@ export default {
           } catch (e) {
             return json({ success: false, error: String(e) }, corsHeaders);
           }
+
+        case "/inbox":
+          return await handleInbox(env, corsHeaders);
+
+        case "/send":
+          if (request.method !== "POST") {
+            return json({ error: "POST required" }, corsHeaders, 405);
+          }
+          return await handleSendEmail(request, env, corsHeaders);
+
+        case "/tasks":
+          return await handleTasks(env, corsHeaders);
+
+        case "/tasks/add":
+          if (request.method !== "POST") {
+            return json({ error: "POST required" }, corsHeaders, 405);
+          }
+          return await handleAddTask(request, env, corsHeaders);
+
+        case "/act":
+          if (request.method !== "POST") {
+            return json({ error: "POST required" }, corsHeaders, 405);
+          }
+          return await handleAct(env, corsHeaders);
 
         default:
           return json({ error: "Not found", path }, corsHeaders, 404);
@@ -386,6 +411,283 @@ async function handleHN(env: Env, headers: Record<string, string>): Promise<Resp
     ...hnContext,
     formatted: formatHNContextForAgent(hnContext),
     lastChecked: new Date().toISOString()
+  }, headers);
+}
+
+// ============================================
+// EMAIL & TASK HANDLERS
+// ============================================
+
+interface Email {
+  id: string;
+  from: string;
+  subject: string;
+  body: string;
+  receivedAt: string;
+  status: "unread" | "read" | "replied" | "archived";
+  category?: "lead" | "partnership" | "question" | "spam" | "other";
+}
+
+interface Task {
+  id: string;
+  type: "respond_email" | "research" | "outreach" | "decision" | "follow_up";
+  priority: "high" | "medium" | "low";
+  title: string;
+  description: string;
+  relatedEmailId?: string;
+  createdAt: string;
+  dueAt?: string;
+  status: "pending" | "in_progress" | "completed" | "blocked";
+  assignedTo: "fred" | "human";
+}
+
+async function handleInbox(env: Env, headers: Record<string, string>): Promise<Response> {
+  // Fetch all emails from KV
+  const emailKeys = await env.FARMER_FRED_KV.list({ prefix: "email:" });
+  const emails: Email[] = [];
+
+  for (const key of emailKeys.keys) {
+    const email = await env.FARMER_FRED_KV.get(key.name, "json") as Email | null;
+    if (email) emails.push(email);
+  }
+
+  // Sort by received date, newest first
+  emails.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
+  const unread = emails.filter(e => e.status === "unread").length;
+  const leads = emails.filter(e => e.category === "lead").length;
+
+  return json({
+    emails,
+    summary: {
+      total: emails.length,
+      unread,
+      leads,
+      needsResponse: emails.filter(e => e.status === "unread" || e.status === "read").length
+    },
+    timestamp: new Date().toISOString()
+  }, headers);
+}
+
+async function handleSendEmail(
+  request: Request,
+  env: Env,
+  headers: Record<string, string>
+): Promise<Response> {
+  if (!env.RESEND_API_KEY) {
+    return json({ error: "RESEND_API_KEY not configured" }, headers, 500);
+  }
+
+  const body = await request.json() as {
+    to: string;
+    subject: string;
+    text: string;
+    html?: string;
+    replyToEmailId?: string;
+  };
+
+  if (!body.to || !body.subject || !body.text) {
+    return json({ error: "Missing required fields: to, subject, text" }, headers, 400);
+  }
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "Farmer Fred <fred@proofofcorn.com>",
+        to: body.to,
+        subject: body.subject,
+        text: body.text,
+        html: body.html || body.text.replace(/\n/g, "<br>")
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return json({ error: "Failed to send email", details: result }, headers, 500);
+    }
+
+    // Log the sent email
+    const logEntry = createLogEntry(
+      "outreach",
+      `Email sent to ${body.to}`,
+      `Subject: ${body.subject}\n\n${body.text.slice(0, 200)}...`
+    );
+    await env.FARMER_FRED_KV.put(
+      `log:${Date.now()}`,
+      JSON.stringify(logEntry),
+      { expirationTtl: 60 * 60 * 24 * 90 }
+    );
+
+    // If replying, update original email status
+    if (body.replyToEmailId) {
+      const originalEmail = await env.FARMER_FRED_KV.get(`email:${body.replyToEmailId}`, "json") as Email | null;
+      if (originalEmail) {
+        originalEmail.status = "replied";
+        await env.FARMER_FRED_KV.put(`email:${body.replyToEmailId}`, JSON.stringify(originalEmail));
+      }
+    }
+
+    return json({ success: true, messageId: result.id }, headers);
+  } catch (error) {
+    return json({ error: "Failed to send email", details: String(error) }, headers, 500);
+  }
+}
+
+async function handleTasks(env: Env, headers: Record<string, string>): Promise<Response> {
+  const taskKeys = await env.FARMER_FRED_KV.list({ prefix: "task:" });
+  const tasks: Task[] = [];
+
+  for (const key of taskKeys.keys) {
+    const task = await env.FARMER_FRED_KV.get(key.name, "json") as Task | null;
+    if (task) tasks.push(task);
+  }
+
+  // Sort by priority and due date
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  tasks.sort((a, b) => {
+    if (a.status === "completed" && b.status !== "completed") return 1;
+    if (b.status === "completed" && a.status !== "completed") return -1;
+    return priorityOrder[a.priority] - priorityOrder[b.priority];
+  });
+
+  const pending = tasks.filter(t => t.status === "pending");
+  const inProgress = tasks.filter(t => t.status === "in_progress");
+
+  return json({
+    tasks,
+    summary: {
+      total: tasks.length,
+      pending: pending.length,
+      inProgress: inProgress.length,
+      completed: tasks.filter(t => t.status === "completed").length,
+      highPriority: tasks.filter(t => t.priority === "high" && t.status !== "completed").length
+    },
+    nextAction: pending.length > 0 ? pending[0] : null,
+    timestamp: new Date().toISOString()
+  }, headers);
+}
+
+async function handleAddTask(
+  request: Request,
+  env: Env,
+  headers: Record<string, string>
+): Promise<Response> {
+  const body = await request.json() as Partial<Task>;
+
+  if (!body.title || !body.type) {
+    return json({ error: "Missing required fields: title, type" }, headers, 400);
+  }
+
+  const task: Task = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: body.type,
+    priority: body.priority || "medium",
+    title: body.title,
+    description: body.description || "",
+    relatedEmailId: body.relatedEmailId,
+    createdAt: new Date().toISOString(),
+    dueAt: body.dueAt,
+    status: "pending",
+    assignedTo: body.assignedTo || "fred"
+  };
+
+  await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task));
+
+  return json({ success: true, task }, headers);
+}
+
+async function handleAct(env: Env, headers: Record<string, string>): Promise<Response> {
+  // This is the autonomous action trigger
+  // Fred analyzes his current state and decides what to do next
+
+  const agent = new FarmerFredAgent(env.ANTHROPIC_API_KEY);
+
+  // 1. Get current inbox state
+  const emailKeys = await env.FARMER_FRED_KV.list({ prefix: "email:" });
+  const emails: Email[] = [];
+  for (const key of emailKeys.keys) {
+    const email = await env.FARMER_FRED_KV.get(key.name, "json") as Email | null;
+    // Check both old format (processed: false) and new format (status: unread/read)
+    if (email && (email.status === "unread" || email.status === "read" || !(email as any).processed)) {
+      emails.push(email);
+    }
+  }
+
+  // 2. Get pending tasks
+  const taskKeys = await env.FARMER_FRED_KV.list({ prefix: "task:" });
+  const tasks: Task[] = [];
+  for (const key of taskKeys.keys) {
+    const task = await env.FARMER_FRED_KV.get(key.name, "json") as Task | null;
+    if (task && task.status === "pending" && task.assignedTo === "fred") {
+      tasks.push(task);
+    }
+  }
+
+  // 3. Get HN context
+  const hnContext = await getHNContext();
+
+  // 4. Build context and ask Fred what to do
+  const context = await buildAgentContext(env);
+  context.emails = emails.map(e => ({
+    from: e.from,
+    subject: e.subject,
+    preview: (e.body || "").slice(0, 200),
+    category: e.category || "other"
+  }));
+  context.pendingTasks = tasks.map(t => ({
+    type: t.type,
+    priority: t.priority,
+    title: t.title,
+    description: t.description
+  }));
+
+  // 5. Ask Fred to decide
+  const actionPrompt = `
+You have:
+- ${emails.length} emails needing response
+- ${tasks.length} pending tasks
+- HN discussion: ${hnContext?.post.commentCount || 0} comments, ${hnContext?.questionsNeedingResponse?.length || 0} unanswered questions
+
+Top emails:
+${emails.slice(0, 3).map(e => `- From: ${e.from}, Subject: ${e.subject}`).join("\n")}
+
+Top tasks:
+${tasks.slice(0, 3).map(t => `- [${t.priority}] ${t.title}`).join("\n")}
+
+What is your SINGLE most important action right now? Be specific about what you will do.
+`;
+
+  const result = await agent.evaluateAction(actionPrompt, context);
+
+  // Log the decision
+  const logEntry = createLogEntry(
+    "agent",
+    "Autonomous Action Decision",
+    `Fred evaluated current state and decided: ${result.decision}\n\nRationale: ${result.rationale}`
+  );
+  await env.FARMER_FRED_KV.put(
+    `log:${Date.now()}`,
+    JSON.stringify(logEntry),
+    { expirationTtl: 60 * 60 * 24 * 90 }
+  );
+
+  return json({
+    state: {
+      unreadEmails: emails.length,
+      pendingTasks: tasks.length,
+      hnComments: hnContext?.post.commentCount || 0
+    },
+    decision: result.decision,
+    rationale: result.rationale,
+    actions: result.actions,
+    needsHumanApproval: result.needsHumanApproval,
+    timestamp: new Date().toISOString()
   }, headers);
 }
 
