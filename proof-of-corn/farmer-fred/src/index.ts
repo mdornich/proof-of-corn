@@ -18,6 +18,7 @@ import { FarmerFredAgent, AgentContext } from "./agent";
 import { CONSTITUTION, SYSTEM_PROMPT } from "./constitution";
 import { fetchAllRegionsWeather, evaluatePlantingConditions } from "./tools/weather";
 import { createLogEntry, logDecision, logWeatherCheck, formatLogEntry, LogEntry } from "./tools/log";
+import { analyzeHNFeedback, fetchStoryMetadata, HNAnalysis } from "./tools/hackernews";
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
@@ -93,6 +94,12 @@ export default {
         case "/log":
           return await handleLog(env, corsHeaders);
 
+        case "/hn":
+          return await handleHN(env, corsHeaders);
+
+        case "/hn/summary":
+          return await handleHNSummary(env, corsHeaders);
+
         default:
           return json({ error: "Not found", path }, corsHeaders, 404);
       }
@@ -151,7 +158,9 @@ function getAgentInfo(env: Env) {
       check: "/check (POST)",
       decide: "/decide (POST)",
       constitution: "/constitution",
-      log: "/log"
+      log: "/log",
+      hn: "/hn",
+      hnSummary: "/hn/summary"
     }
   };
 }
@@ -262,6 +271,62 @@ async function handleLog(env: Env, headers: Record<string, string>): Promise<Res
   logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   return json({ logs, count: logs.length }, headers);
+}
+
+async function handleHN(env: Env, headers: Record<string, string>): Promise<Response> {
+  try {
+    // Check cache first (refresh every 15 minutes)
+    const cached = await env.FARMER_FRED_KV.get("hn:analysis", "json") as HNAnalysis | null;
+    if (cached) {
+      const cacheAge = Date.now() - new Date(cached.timestamp).getTime();
+      if (cacheAge < 15 * 60 * 1000) { // 15 minutes
+        return json({ ...cached, cached: true }, headers);
+      }
+    }
+
+    // Fetch fresh analysis
+    const analysis = await analyzeHNFeedback();
+
+    // Cache the result
+    await env.FARMER_FRED_KV.put(
+      "hn:analysis",
+      JSON.stringify(analysis),
+      { expirationTtl: 60 * 60 * 24 } // 24 hours
+    );
+
+    // Log the check
+    const logEntry = createLogEntry(
+      "agent",
+      "HN Community Check",
+      `Analyzed ${analysis.totalComments} comments. Sentiment: ${analysis.sentiment.overall}. Found ${analysis.actionableIdeas.length} actionable ideas.`
+    );
+    await env.FARMER_FRED_KV.put(
+      `log:${Date.now()}`,
+      JSON.stringify(logEntry),
+      { expirationTtl: 60 * 60 * 24 * 90 }
+    );
+
+    return json({ ...analysis, cached: false }, headers);
+  } catch (error) {
+    console.error("HN analysis failed:", error);
+    return json({ error: "Failed to analyze HN", message: String(error) }, headers, 500);
+  }
+}
+
+async function handleHNSummary(env: Env, headers: Record<string, string>): Promise<Response> {
+  try {
+    const metadata = await fetchStoryMetadata();
+    return json({
+      storyId: "46735511",
+      url: "https://news.ycombinator.com/item?id=46735511",
+      points: metadata.points,
+      comments: metadata.numComments,
+      title: metadata.title,
+      timestamp: new Date().toISOString()
+    }, headers);
+  } catch (error) {
+    return json({ error: "Failed to fetch HN summary", message: String(error) }, headers, 500);
+  }
 }
 
 // ============================================
