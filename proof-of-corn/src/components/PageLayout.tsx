@@ -21,6 +21,7 @@ export default function PageLayout({ children, title, subtitle }: PageLayoutProp
     { href: '/story', label: 'Story' },
     { href: '/fred', label: 'Farmer Fred' },
     { href: '/log', label: 'Log' },
+    { href: '/improve', label: 'Improve' },
     { href: '/dashboard', label: 'Dashboard' },
   ];
 

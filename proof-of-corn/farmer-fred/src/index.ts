@@ -12,6 +12,10 @@
  *   POST /decide        - Submit an action for evaluation
  *   GET  /constitution  - View the agent's constitution
  *   GET  /log           - View recent decisions
+ *   GET  /learnings     - View what Fred has learned
+ *   POST /learnings     - Add a new learning
+ *   GET  /feedback      - View community feedback
+ *   POST /feedback      - Submit feedback to help Fred improve
  */
 
 import { FarmerFredAgent, AgentContext } from "./agent";
@@ -138,6 +142,25 @@ export default {
             return json({ error: "POST required" }, corsHeaders, 405);
           }
           return await handleAct(env, corsHeaders);
+
+        case "/learnings":
+          if (request.method === "POST") {
+            return await handleAddLearning(request, env, corsHeaders);
+          }
+          return await handleLearnings(env, corsHeaders);
+
+        case "/feedback":
+          if (request.method === "POST") {
+            return await handleAddFeedback(request, env, corsHeaders);
+          }
+          return await handleFeedback(env, corsHeaders);
+
+        case "/improve":
+          // Redirect to website community page
+          return new Response(null, {
+            status: 302,
+            headers: { ...corsHeaders, "Location": "https://proofofcorn.com/improve" }
+          });
 
         default:
           return json({ error: "Not found", path }, corsHeaders, 404);
@@ -441,6 +464,28 @@ interface Task {
   assignedTo: "fred" | "human";
 }
 
+interface Learning {
+  id: string;
+  source: "email" | "hn" | "feedback" | "decision" | "observation";
+  sourceId?: string;
+  insight: string;
+  category: "communication" | "farming" | "partnerships" | "community" | "operations" | "general";
+  confidence: "high" | "medium" | "low";
+  createdAt: string;
+  appliedCount: number;
+}
+
+interface Feedback {
+  id: string;
+  author?: string;
+  type: "suggestion" | "bug" | "improvement" | "question" | "praise";
+  content: string;
+  status: "pending" | "reviewed" | "incorporated" | "declined";
+  createdAt: string;
+  reviewedAt?: string;
+  learningId?: string; // If this feedback became a learning
+}
+
 async function handleInbox(env: Env, headers: Record<string, string>): Promise<Response> {
   // Fetch all emails from KV
   const emailKeys = await env.FARMER_FRED_KV.list({ prefix: "email:" });
@@ -689,6 +734,214 @@ What is your SINGLE most important action right now? Be specific about what you 
     needsHumanApproval: result.needsHumanApproval,
     timestamp: new Date().toISOString()
   }, headers);
+}
+
+// ============================================
+// LEARNING SYSTEM
+// ============================================
+
+async function handleLearnings(env: Env, headers: Record<string, string>): Promise<Response> {
+  const learningKeys = await env.FARMER_FRED_KV.list({ prefix: "learning:" });
+  const learnings: Learning[] = [];
+
+  for (const key of learningKeys.keys) {
+    const learning = await env.FARMER_FRED_KV.get(key.name, "json") as Learning | null;
+    if (learning) learnings.push(learning);
+  }
+
+  // Sort by creation date, newest first
+  learnings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  // Group by category
+  const byCategory: Record<string, Learning[]> = {};
+  for (const l of learnings) {
+    if (!byCategory[l.category]) byCategory[l.category] = [];
+    byCategory[l.category].push(l);
+  }
+
+  return json({
+    learnings,
+    byCategory,
+    summary: {
+      total: learnings.length,
+      fromEmails: learnings.filter(l => l.source === "email").length,
+      fromHN: learnings.filter(l => l.source === "hn").length,
+      fromFeedback: learnings.filter(l => l.source === "feedback").length,
+      highConfidence: learnings.filter(l => l.confidence === "high").length
+    },
+    timestamp: new Date().toISOString()
+  }, headers);
+}
+
+async function handleAddLearning(
+  request: Request,
+  env: Env,
+  headers: Record<string, string>
+): Promise<Response> {
+  const body = await request.json() as Partial<Learning>;
+
+  if (!body.insight || !body.source) {
+    return json({ error: "Missing required fields: insight, source" }, headers, 400);
+  }
+
+  const learning: Learning = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    source: body.source,
+    sourceId: body.sourceId,
+    insight: body.insight,
+    category: body.category || "general",
+    confidence: body.confidence || "medium",
+    createdAt: new Date().toISOString(),
+    appliedCount: 0
+  };
+
+  await env.FARMER_FRED_KV.put(
+    `learning:${learning.id}`,
+    JSON.stringify(learning),
+    { expirationTtl: 60 * 60 * 24 * 365 } // Keep for 1 year
+  );
+
+  // Log the new learning
+  const logEntry = createLogEntry(
+    "agent",
+    "New Learning Recorded",
+    `Fred learned: "${learning.insight}"\n\nSource: ${learning.source}\nCategory: ${learning.category}\nConfidence: ${learning.confidence}`
+  );
+  await env.FARMER_FRED_KV.put(
+    `log:${Date.now()}`,
+    JSON.stringify(logEntry),
+    { expirationTtl: 60 * 60 * 24 * 90 }
+  );
+
+  return json({ success: true, learning }, headers);
+}
+
+async function handleFeedback(env: Env, headers: Record<string, string>): Promise<Response> {
+  const feedbackKeys = await env.FARMER_FRED_KV.list({ prefix: "feedback:" });
+  const feedback: Feedback[] = [];
+
+  for (const key of feedbackKeys.keys) {
+    const fb = await env.FARMER_FRED_KV.get(key.name, "json") as Feedback | null;
+    if (fb) feedback.push(fb);
+  }
+
+  // Sort by creation date, newest first
+  feedback.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return json({
+    feedback,
+    summary: {
+      total: feedback.length,
+      pending: feedback.filter(f => f.status === "pending").length,
+      incorporated: feedback.filter(f => f.status === "incorporated").length,
+      byType: {
+        suggestions: feedback.filter(f => f.type === "suggestion").length,
+        improvements: feedback.filter(f => f.type === "improvement").length,
+        bugs: feedback.filter(f => f.type === "bug").length,
+        questions: feedback.filter(f => f.type === "question").length,
+        praise: feedback.filter(f => f.type === "praise").length
+      }
+    },
+    timestamp: new Date().toISOString()
+  }, headers);
+}
+
+async function handleAddFeedback(
+  request: Request,
+  env: Env,
+  headers: Record<string, string>
+): Promise<Response> {
+  const body = await request.json() as Partial<Feedback>;
+
+  if (!body.content) {
+    return json({ error: "Missing required field: content" }, headers, 400);
+  }
+
+  // Basic spam protection - content length
+  if (body.content.length < 10 || body.content.length > 2000) {
+    return json({ error: "Content must be between 10 and 2000 characters" }, headers, 400);
+  }
+
+  const feedback: Feedback = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    author: body.author || "Anonymous",
+    type: body.type || "suggestion",
+    content: body.content,
+    status: "pending",
+    createdAt: new Date().toISOString()
+  };
+
+  await env.FARMER_FRED_KV.put(
+    `feedback:${feedback.id}`,
+    JSON.stringify(feedback),
+    { expirationTtl: 60 * 60 * 24 * 180 } // Keep for 6 months
+  );
+
+  // Log the feedback
+  const logEntry = createLogEntry(
+    "community",
+    "Community Feedback Received",
+    `New ${feedback.type} from ${feedback.author}:\n\n"${feedback.content.slice(0, 200)}${feedback.content.length > 200 ? '...' : ''}"`
+  );
+  await env.FARMER_FRED_KV.put(
+    `log:${Date.now()}`,
+    JSON.stringify(logEntry),
+    { expirationTtl: 60 * 60 * 24 * 90 }
+  );
+
+  return json({
+    success: true,
+    feedback,
+    message: "Thank you for helping Fred get smarter! Your feedback has been received."
+  }, headers);
+}
+
+// Helper to extract learnings from an email
+async function extractLearningsFromEmail(email: Email, env: Env): Promise<Learning[]> {
+  const learnings: Learning[] = [];
+
+  // Simple pattern matching for now - could use Claude for more sophisticated extraction
+  const content = `${email.subject} ${email.body}`.toLowerCase();
+
+  // Communication preferences
+  if (content.includes("prefer") || content.includes("would be better")) {
+    learnings.push({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      source: "email",
+      sourceId: email.id,
+      insight: `Communication preference noted from ${email.from}: "${email.subject}"`,
+      category: "communication",
+      confidence: "medium",
+      createdAt: new Date().toISOString(),
+      appliedCount: 0
+    });
+  }
+
+  // Regional farming insights
+  if (content.includes("nebraska") || content.includes("iowa") || content.includes("texas")) {
+    const region = content.includes("nebraska") ? "Nebraska" : content.includes("iowa") ? "Iowa" : "Texas";
+    learnings.push({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      source: "email",
+      sourceId: email.id,
+      insight: `Regional insight from ${email.from} about ${region} farming`,
+      category: "farming",
+      confidence: "medium",
+      createdAt: new Date().toISOString(),
+      appliedCount: 0
+    });
+  }
+
+  // Store each learning
+  for (const learning of learnings) {
+    await env.FARMER_FRED_KV.put(
+      `learning:${learning.id}`,
+      JSON.stringify(learning),
+      { expirationTtl: 60 * 60 * 24 * 365 }
+    );
+  }
+
+  return learnings;
 }
 
 // ============================================

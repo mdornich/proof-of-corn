@@ -61,6 +61,7 @@ const categoryStyles: Record<string, string> = {
   agent: "bg-violet-50 text-violet-700",
   milestone: "bg-rose-50 text-rose-700",
   lead: "bg-green-50 text-green-700",
+  community: "bg-cyan-50 text-cyan-700",
 };
 
 function formatTimestamp(iso: string): string {
