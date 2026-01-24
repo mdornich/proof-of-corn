@@ -19,7 +19,7 @@ export default function PageLayout({ children, title, subtitle }: PageLayoutProp
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/story', label: 'Story' },
-    { href: '/fred', label: 'Fred' },
+    { href: '/fred', label: 'Farmer Fred' },
     { href: '/log', label: 'Log' },
     { href: '/dashboard', label: 'Dashboard' },
   ];
