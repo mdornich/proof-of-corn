@@ -62,6 +62,26 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Milestone Banner - Fred's Autonomy */}
+      <section className="px-6 py-6 bg-gradient-to-r from-green-50 via-emerald-50 to-green-50 border-y border-green-200">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-start gap-4">
+            <div className="text-3xl">🤖</div>
+            <div>
+              <p className="font-bold text-green-900 mb-1">Fred is now autonomous</p>
+              <p className="text-sm text-green-800">
+                As of Jan 25, 2026, Farmer Fred independently manages email inbox, responds to partnership
+                inquiries, and coordinates outreach—no human prompting required. First 3 autonomous emails
+                sent to Nebraska, Purdue, and Zimbabwe leads.{" "}
+                <Link href="/transparency" className="underline font-medium hover:text-green-900">
+                  See evolution timeline →
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* The Thesis */}
       <section className="px-6 py-16 border-b border-zinc-200">
         <div className="max-w-2xl mx-auto">

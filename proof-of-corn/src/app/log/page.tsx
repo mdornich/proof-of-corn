@@ -128,6 +128,18 @@ export default function LogPage() {
     >
       <div className="px-6 py-8">
         <div className="max-w-4xl mx-auto">
+          {/* Autonomy Milestone */}
+          <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 p-4 rounded-r-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg">🤖</span>
+              <p className="font-bold text-green-900 text-sm">Jan 25, 2026 - Fred is now fully autonomous</p>
+            </div>
+            <p className="text-sm text-green-800">
+              Fred now reads incoming emails, creates tasks, composes responses, and sends partnership outreach
+              independently. First 3 autonomous emails sent today. Watch this log for his decisions in real-time.
+            </p>
+          </div>
+
           {/* Live indicator + refresh */}
           <div className="flex items-center justify-between mb-6 text-sm">
             <div className="flex items-center gap-2">

@@ -17,6 +17,13 @@ interface WeatherData {
 
 type FredState = "active" | "monitoring" | "thinking" | "dormant";
 
+interface LogEntry {
+  timestamp: string;
+  category: string;
+  title: string;
+  description: string;
+}
+
 export default function FredPage() {
   const [weather, setWeather] = useState<WeatherData[]>([]);
   const [currentRegion, setCurrentRegion] = useState<WeatherData | null>(null);
@@ -25,17 +32,24 @@ export default function FredPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [regionIndex, setRegionIndex] = useState(0);
+  const [recentActivity, setRecentActivity] = useState<LogEntry[]>([]);
 
   // Fetch Fred's status
   const fetchStatus = async () => {
     try {
       setFredState("thinking");
-      const res = await fetch("https://farmer-fred.sethgoldstein.workers.dev/weather");
-      const data = await res.json();
-      setWeather(data.weather || []);
+      const [weatherRes, logRes] = await Promise.all([
+        fetch("https://farmer-fred.sethgoldstein.workers.dev/weather"),
+        fetch("https://farmer-fred.sethgoldstein.workers.dev/log")
+      ]);
+      const weatherData = await weatherRes.json();
+      const logData = await logRes.json();
+
+      setWeather(weatherData.weather || []);
+      setRecentActivity((logData.logs || []).slice(0, 10));
 
       // Find the most interesting region
-      const regions = data.weather || [];
+      const regions = weatherData.weather || [];
       const plantable = regions.find((w: WeatherData) => w.plantingViable);
       const interesting = plantable || regions.find((w: WeatherData) => w.temperature > 50) || regions[0];
 
@@ -131,10 +145,24 @@ export default function FredPage() {
   return (
     <PageLayout
       title="Farmer Fred"
-      subtitle="Autonomous agricultural agent • Walking the fields"
+      subtitle="Autonomous agricultural agent • Monitoring fields • Responding to partnerships • Evolving daily"
     >
       <main className="px-6 py-8">
         <div className="max-w-4xl mx-auto">
+
+          {/* Evolution Milestone */}
+          <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 p-4 rounded-r-lg">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">🤝</div>
+              <div>
+                <p className="font-bold text-green-900 text-sm">NEW: Fred is now autonomous</p>
+                <p className="text-sm text-green-800">
+                  As of Jan 25, 2026, Fred independently reads emails, creates tasks, composes responses,
+                  and manages partnership outreach. <a href="/transparency" className="underline font-medium">View full evolution →</a>
+                </p>
+              </div>
+            </div>
+          </div>
 
           {/* The Tandoori Oven Window */}
           <div className="bg-gradient-to-b from-sky-100 to-green-100 border-4 border-amber-800 rounded-lg overflow-hidden shadow-2xl">
@@ -364,31 +392,43 @@ export default function FredPage() {
           <div className="mt-8">
             <h2 className="text-xl font-bold mb-4">📋 Recent Activity</h2>
             <div className="bg-white border border-zinc-200 rounded-lg divide-y divide-zinc-100">
-              <FeedItem
-                time="6:00 AM UTC"
-                icon="🌡️"
-                title="Daily weather check"
-                description="Checked conditions across Iowa, Texas, and Argentina"
-              />
-              <FeedItem
-                time="6:01 AM UTC"
-                icon="🧠"
-                title="Decision: Continue monitoring"
-                description="Iowa frozen, Texas window open but awaiting land. Patience."
-              />
-              <FeedItem
-                time="Yesterday"
-                icon="📧"
-                title="Outreach sent"
-                description="Contacted Texas AgriLife Extension in Hidalgo & Cameron counties"
-              />
-              <FeedItem
-                time="Jan 23"
-                icon="🎉"
-                title="Fred activated"
-                description="Made first autonomous decision. 60 years of farming wisdom, now digital."
-              />
+              {recentActivity.length > 0 ? (
+                recentActivity.map((log, i) => {
+                  const time = new Date(log.timestamp);
+                  const timeStr = time.toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  });
+
+                  const icon = log.category === "outreach" ? "📧" :
+                               log.category === "agent" ? "🧠" :
+                               log.category === "weather" ? "🌡️" :
+                               "📝";
+
+                  return (
+                    <FeedItem
+                      key={i}
+                      time={timeStr}
+                      icon={icon}
+                      title={log.title}
+                      description={log.description.split('\n')[0].slice(0, 120) + (log.description.length > 120 ? '...' : '')}
+                    />
+                  );
+                })
+              ) : (
+                <FeedItem
+                  time="Loading..."
+                  icon="⏳"
+                  title="Fetching Fred's activity"
+                  description="Loading recent decisions and actions..."
+                />
+              )}
             </div>
+            <p className="text-xs text-zinc-500 mt-2">
+              Live data from Fred&apos;s decision log. <a href="/log" className="text-amber-600 hover:underline">View full log →</a>
+            </p>
           </div>
 
           {/* Constitution */}

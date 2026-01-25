@@ -137,6 +137,12 @@ export default {
           }
           return await handleAddTask(request, env, corsHeaders);
 
+        case "/process-task":
+          if (request.method !== "POST") {
+            return json({ error: "POST required" }, corsHeaders, 405);
+          }
+          return await handleProcessTask(request, env, corsHeaders);
+
         case "/act":
           if (request.method !== "POST") {
             return json({ error: "POST required" }, corsHeaders, 405);
@@ -647,6 +653,170 @@ async function handleAddTask(
   return json({ success: true, task }, headers);
 }
 
+async function handleProcessTask(
+  request: Request,
+  env: Env,
+  headers: Record<string, string>
+): Promise<Response> {
+  const body = await request.json() as { taskId: string };
+
+  if (!body.taskId) {
+    return json({ error: "Missing taskId" }, headers, 400);
+  }
+
+  // Get the task
+  const task = await env.FARMER_FRED_KV.get(`task:${body.taskId}`, "json") as Task | null;
+  if (!task) {
+    return json({ error: "Task not found" }, headers, 404);
+  }
+
+  if (task.status === "completed") {
+    return json({ error: "Task already completed" }, headers, 400);
+  }
+
+  // Only handle email response tasks for now
+  if (task.type !== "respond_email" || !task.relatedEmailId) {
+    return json({ error: "Only email response tasks supported" }, headers, 400);
+  }
+
+  if (!env.RESEND_API_KEY) {
+    return json({ error: "RESEND_API_KEY not configured" }, headers, 500);
+  }
+
+  // Get the email we're responding to
+  const email = await env.FARMER_FRED_KV.get(`email:${task.relatedEmailId}`, "json") as Email | null;
+  if (!email) {
+    return json({ error: "Related email not found" }, headers, 404);
+  }
+
+  // Detect if this is a forwarded email and extract the real sender
+  let actualSender = email.from;
+  let ccRecipient: string | undefined;
+  const forwardMatch = email.body.match(/From:\s*(?:.*?<)?([^\s<>]+@[^\s<>]+)(?:>)?/i);
+
+  if (forwardMatch && email.from === "sethgoldstein@gmail.com") {
+    // This is a forwarded email from Seth - reply to the actual sender and CC Seth
+    actualSender = forwardMatch[1];
+    ccRecipient = "sethgoldstein@gmail.com";
+  }
+
+  try {
+    // Ask Claude to compose a response email
+    const emailPrompt = `You are Farmer Fred, the AI farm manager for Proof of Corn.
+
+You received this email${ccRecipient ? " (forwarded by Seth)" : ""}:
+From: ${actualSender}
+Subject: ${email.subject}
+Message: ${email.body}
+
+Your task: ${task.description}
+
+Compose a professional, enthusiastic email response. Be specific about next steps. Keep it under 200 words.
+
+IMPORTANT: Respond ONLY with valid JSON in this exact format:
+{"subject": "Re: ...", "body": "..."}
+
+Do not include any other text or formatting.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: emailPrompt }]
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      return json({ error: "Claude API error", details: error }, headers, 500);
+    }
+
+    const data: any = await response.json();
+    const emailContent = data.content?.[0]?.text;
+
+    if (!emailContent) {
+      return json({ error: "No response from Claude" }, headers, 500);
+    }
+
+    // Parse the JSON response
+    let parsed: { subject: string; body: string };
+    try {
+      parsed = JSON.parse(emailContent);
+    } catch (e) {
+      return json({ error: "Failed to parse Claude response", raw: emailContent }, headers, 500);
+    }
+
+    // Send the email via Resend
+    const emailPayload: any = {
+      from: "Farmer Fred <fred@proofofcorn.com>",
+      to: actualSender,
+      subject: parsed.subject,
+      text: parsed.body
+    };
+
+    // Add CC if this was a forwarded email
+    if (ccRecipient) {
+      emailPayload.cc = ccRecipient;
+    }
+
+    const sendResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(emailPayload)
+    });
+
+    if (!sendResponse.ok) {
+      const sendError = await sendResponse.text();
+      return json({ error: "Failed to send email", details: sendError }, headers, 500);
+    }
+
+    const sendResult = await sendResponse.json();
+
+    // Mark task as completed
+    task.status = "completed";
+    await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task));
+
+    // Mark email as replied
+    email.status = "replied";
+    await env.FARMER_FRED_KV.put(`email:${email.id}`, JSON.stringify(email));
+
+    // Log the outreach
+    const outreachLog = createLogEntry(
+      "outreach",
+      `Email sent to ${actualSender}${ccRecipient ? ` (CC: ${ccRecipient})` : ""}`,
+      `Subject: ${parsed.subject}\n\n${parsed.body.slice(0, 200)}...`
+    );
+    await env.FARMER_FRED_KV.put(
+      `log:${Date.now()}-email`,
+      JSON.stringify(outreachLog),
+      { expirationTtl: 60 * 60 * 24 * 90 }
+    );
+
+    return json({
+      success: true,
+      task: task.id,
+      email: {
+        to: actualSender,
+        cc: ccRecipient,
+        subject: parsed.subject,
+        body: parsed.body,
+        messageId: sendResult.id
+      }
+    }, headers);
+  } catch (error) {
+    return json({ error: "Failed to process task", details: String(error) }, headers, 500);
+  }
+}
+
 async function handleAct(env: Env, headers: Record<string, string>): Promise<Response> {
   // This is the autonomous action trigger
   // Fred analyzes his current state and decides what to do next
@@ -953,11 +1123,33 @@ async function performDailyCheck(env: Env) {
   const context = await buildAgentContext(env);
   const result = await agent.dailyCheck(context);
 
+  // Acknowledge high-priority tasks (lightweight - no AI calls during daily check)
+  const executedActions: string[] = [];
+  if (!result.needsHumanApproval && context.pendingTasks.length > 0) {
+    // Just mark high-priority email tasks as "in_progress" to show Fred saw them
+    const highPriorityEmailTasks = context.pendingTasks
+      .filter(t => t.priority === "high" && t.status === "pending" && t.description.includes("Respond to"))
+      .slice(0, 3);
+
+    for (const agentTask of highPriorityEmailTasks) {
+      try {
+        const task = await env.FARMER_FRED_KV.get(`task:${agentTask.id}`, "json") as Task | null;
+        if (task) {
+          task.status = "in_progress";
+          await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task));
+          executedActions.push(`Acknowledged: ${task.title}`);
+        }
+      } catch (error) {
+        console.error("Failed to update task:", error);
+      }
+    }
+  }
+
   // Log the check
   const logEntry = createLogEntry(
     "agent",
     "Daily Check Complete",
-    `Decision: ${result.decision}\n\nRationale: ${result.rationale}\n\nActions: ${result.actions.length}\nNeeds approval: ${result.needsHumanApproval}`
+    `Decision: ${result.decision}\n\nRationale: ${result.rationale}\n\nActions: ${result.actions.length}\nNeeds approval: ${result.needsHumanApproval}\nExecuted: ${executedActions.length > 0 ? executedActions.join(", ") : "none"}`
   );
 
   await env.FARMER_FRED_KV.put(
@@ -966,7 +1158,7 @@ async function performDailyCheck(env: Env) {
     { expirationTtl: 60 * 60 * 24 * 90 }
   );
 
-  return result;
+  return { ...result, executedActions };
 }
 
 async function buildAgentContext(env: Env): Promise<AgentContext> {
@@ -993,6 +1185,39 @@ async function buildAgentContext(env: Env): Promise<AgentContext> {
 
   const budget = budgetData || { spent: 12.99, allocated: 2500 };
 
+  // Get emails
+  const emailSummaries: AgentContext["emails"] = [];
+  const emailKeys = await env.FARMER_FRED_KV.list({ prefix: "email:" });
+  for (const key of emailKeys.keys) {
+    const email = await env.FARMER_FRED_KV.get(key.name, "json") as Email | null;
+    if (email && email.status !== "archived" && email.status !== "replied") {
+      const body = email.body || "";
+      emailSummaries.push({
+        from: email.from,
+        subject: email.subject,
+        summary: body.slice(0, 200) + (body.length > 200 ? "..." : ""),
+        requiresAction: email.status === "unread" || email.category === "lead",
+        receivedAt: email.receivedAt
+      });
+    }
+  }
+
+  // Get pending tasks
+  const pendingTasks: AgentContext["pendingTasks"] = [];
+  const taskKeys = await env.FARMER_FRED_KV.list({ prefix: "task:" });
+  for (const key of taskKeys.keys) {
+    const task = await env.FARMER_FRED_KV.get(key.name, "json") as Task | null;
+    if (task && task.status !== "completed") {
+      pendingTasks.push({
+        id: task.id,
+        description: task.title + (task.description ? `: ${task.description}` : ""),
+        priority: task.priority,
+        dueDate: task.dueAt || null,
+        status: task.status
+      });
+    }
+  }
+
   // Get recent decisions
   const recentDecisions: AgentContext["recentDecisions"] = [];
   const logKeys = await env.FARMER_FRED_KV.list({ prefix: "log:" });
@@ -1013,14 +1238,14 @@ async function buildAgentContext(env: Env): Promise<AgentContext> {
 
   return {
     weather,
-    emails: [], // TODO: Integrate email checking
+    emails: emailSummaries,
     budget: {
       spent: budget.spent,
       allocated: budget.allocated,
       remaining: budget.allocated - budget.spent,
       percentUsed: budget.spent / budget.allocated
     },
-    pendingTasks: [], // TODO: Integrate task management
+    pendingTasks,
     recentDecisions
   };
 }

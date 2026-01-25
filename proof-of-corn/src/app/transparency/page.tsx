@@ -50,6 +50,20 @@ const humanInterventions = [
     ratio: "5% human / 95% AI"
   },
   {
+    date: "Jan 24-25, 2026",
+    action: "Email inbox monitoring",
+    human: "Seth forwards incoming emails to fred@proofofcorn.com",
+    ai: "Fred parses emails, categorizes them (lead/partnership/question), creates response tasks",
+    ratio: "5% human / 95% AI"
+  },
+  {
+    date: "Jan 25, 2026",
+    action: "First autonomous email responses",
+    human: "None - Fred composed and sent responses independently",
+    ai: "Fred processed 3 pending tasks, composed professional responses to Chad (Nebraska), David (Purdue), and David (Zimbabwe), sent emails with proper CC handling",
+    ratio: "0% human / 100% AI"
+  },
+  {
     date: "Ongoing",
     action: "Daily weather checks",
     human: "None - runs on cron",
@@ -105,7 +119,7 @@ const faqs = [
   },
   {
     q: "Shouldn't Fred also READ incoming emails, not just send them?",
-    a: "Yes! This is on the roadmap (suggested by divbzero on HN). Fred should field incoming responses, evaluate them, and escalate when needed. Two-way communication is next."
+    a: "Done! (Suggested by divbzero on HN, shipped Jan 25). Fred now receives emails at fred@proofofcorn.com, parses them, creates tasks, and autonomously composes responses. He's sent 3 partnership emails in the last hour. Two-way communication is live."
   },
   {
     q: "What about seed selection, fertilizer, fungicides—real farming decisions?",
@@ -140,6 +154,57 @@ export default function TransparencyPage() {
           <p className="text-zinc-500 mb-12">
             Every human intervention logged. Every AI decision documented. No black boxes.
           </p>
+
+          {/* Fred's Evolution */}
+          <section className="mb-16">
+            <h2 className="text-2xl font-bold mb-6">Fred&apos;s Evolution</h2>
+            <p className="text-zinc-600 mb-6">
+              Fred started as a weather-checking script. He&apos;s becoming a true autonomous farm manager.
+              Every capability ships in public.
+            </p>
+
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-6 mb-6">
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <div className="text-xl">🌱</div>
+                  <div>
+                    <p className="font-bold text-sm text-amber-900">Jan 23, 2026 - Birth</p>
+                    <p className="text-sm text-amber-800">First deploy. Weather monitoring across 3 regions. Daily cron at 6 AM UTC.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="text-xl">📧</div>
+                  <div>
+                    <p className="font-bold text-sm text-amber-900">Jan 24, 2026 - Inbox</p>
+                    <p className="text-sm text-amber-800">Email webhook configured. Fred receives messages at fred@proofofcorn.com and creates tasks.</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="text-xl">🤝</div>
+                  <div>
+                    <p className="font-bold text-sm text-amber-900">Jan 25, 2026 - Autonomy</p>
+                    <p className="text-sm text-amber-800">
+                      <strong>MAJOR MILESTONE:</strong> Fred now composes and sends email responses independently.
+                      First 3 autonomous partnership emails sent to Nebraska, Purdue, and Zimbabwe leads.
+                      Properly handles forwarded emails (replies to actual sender, CCs Seth).
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="text-xl">🔮</div>
+                  <div>
+                    <p className="font-bold text-sm text-zinc-400">Coming Soon - Decision Making</p>
+                    <p className="text-sm text-zinc-500">Fred will evaluate partnership proposals and make land selection recommendations.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-500 italic">
+              This evolution happens in public. Every capability Fred gains is documented here before it ships.
+              View Fred&apos;s source code: <a href="https://github.com/brightseth/proof-of-corn/tree/main/farmer-fred" className="text-amber-600 hover:underline" target="_blank" rel="noopener noreferrer">github.com/brightseth/proof-of-corn/farmer-fred →</a>
+            </p>
+          </section>
 
           {/* Human Intervention Log */}
           <section className="mb-16">
@@ -233,7 +298,9 @@ export default function TransparencyPage() {
                 <h4 className="font-bold text-green-800 mb-2">Fred CAN Act Autonomously</h4>
                 <ul className="text-sm text-green-700 space-y-1">
                   <li>• Weather monitoring & analysis</li>
-                  <li>• Routine vendor communications</li>
+                  <li>• Email inbox processing & responses</li>
+                  <li>• Partnership outreach communications</li>
+                  <li>• Task creation & prioritization</li>
                   <li>• Data collection & logging</li>
                   <li>• Research & recommendations</li>
                   <li>• Budget tracking & alerts</li>
@@ -273,7 +340,7 @@ export default function TransparencyPage() {
 
             <div className="space-y-4">
               {[
-                { idea: "Fred reads incoming emails", source: "divbzero (HN)", status: "next", desc: "Two-way communication—Fred should field responses and escalate when needed" },
+                { idea: "Fred reads incoming emails", source: "divbzero (HN)", status: "shipped", desc: "Two-way communication—Fred fields responses, composes replies, and manages outreach. Shipped Jan 25, 2026. First 3 emails sent autonomously." },
                 { idea: "Parallel commodities experiment", source: "bwestergard (HN)", status: "planned", desc: "Track equivalent investment in corn futures as baseline comparison" },
                 { idea: "IoT soil sensors", source: "tsunamifury (HN)", status: "planned", desc: "Real sensing to address 'hand in the dirt' limitation" },
                 { idea: "Seed variety selection logic", source: "bluGill (HN)", status: "planned", desc: "Fred should evaluate hybrid options based on conditions" },
@@ -281,10 +348,11 @@ export default function TransparencyPage() {
                 { idea: "Multi-contractor coordination", source: "community", status: "later", desc: "True test: Fred manages multiple vendors over full season" },
               ].map((item) => (
                 <div key={item.idea} className="bg-white border border-zinc-200 rounded-lg p-4 flex gap-4">
-                  <div className={`px-2 py-1 text-xs rounded h-fit ${
-                    item.status === "next" ? "bg-green-100 text-green-700" :
+                  <div className={`px-2 py-1 text-xs rounded h-fit font-medium ${
+                    item.status === "shipped" ? "bg-green-100 text-green-700" :
+                    item.status === "next" ? "bg-blue-100 text-blue-700" :
                     item.status === "planned" ? "bg-amber-100 text-amber-700" :
-                    item.status === "considering" ? "bg-blue-100 text-blue-700" :
+                    item.status === "considering" ? "bg-purple-100 text-purple-700" :
                     "bg-zinc-100 text-zinc-600"
                   }`}>
                     {item.status}
