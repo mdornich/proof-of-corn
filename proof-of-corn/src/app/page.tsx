@@ -55,7 +55,7 @@ export default function Home() {
             with every decision made by Claude Code.
           </p>
           <div className="mt-8">
-            <Link href="/story" className="text-amber-600 hover:underline">
+            <Link href="/about" className="text-amber-600 hover:underline">
               Read the full story →
             </Link>
           </div>

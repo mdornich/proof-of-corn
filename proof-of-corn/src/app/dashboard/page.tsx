@@ -5,6 +5,8 @@ import PageLayout from '@/components/PageLayout';
 
 const FRED_API = 'https://farmer-fred.sethgoldstein.workers.dev';
 
+type TabType = 'overview' | 'weather' | 'inbox' | 'budget' | 'partnerships' | 'commodities' | 'regions' | 'analytics';
+
 interface Email {
   id: string;
   from: string;
@@ -51,11 +53,126 @@ interface Weather {
   plantingViable: boolean;
 }
 
+interface BudgetExpense {
+  item: string;
+  cost: number;
+  status: string;
+  date: string;
+}
+
+interface Partnership {
+  id: string;
+  title: string;
+  scores: {
+    fiduciary: number;
+    regenerative: number;
+    global: number;
+    transparency: number;
+    collaboration: number;
+  };
+  totalScore: number;
+  risks: string[];
+  opportunities: string[];
+  recommendation: string;
+  rationale: string;
+  priority: number;
+}
+
+interface CommodityData {
+  investment: {
+    initial: number;
+    date: string;
+    asset: string;
+    contracts: string;
+  };
+  current: {
+    pricePerBushel: number;
+    estimatedValue: number;
+    gainLoss: number;
+    gainLossPercent: number;
+    asOf: string;
+  };
+  comparison: {
+    actualFarmingSpent: number;
+    actualFarmingValue: number;
+    futuresValue: number;
+    advantage: string;
+  };
+  note: string;
+}
+
+interface RegionData {
+  id: string;
+  name: string;
+  worldId: string;
+  viewerUrl: string;
+  panoramaUrl: string;
+  thumbnailUrl: string;
+  description: string;
+  features: string[];
+  coordinates: { lat: number; lon: number };
+}
+
+const REGIONS: RegionData[] = [
+  {
+    id: 'iowa',
+    name: 'Iowa',
+    worldId: 'b1d3b624-e89a-4463-8af2-f8ee7f2f2e47',
+    viewerUrl: 'https://marble.worldlabs.ai/world/b1d3b624-e89a-4463-8af2-f8ee7f2f2e47',
+    panoramaUrl: 'https://assets.worldlabs.ai/b1d3b624-e89a-4463-8af2-f8ee7f2f2e47/panorama.jpg',
+    thumbnailUrl: 'https://assets.worldlabs.ai/b1d3b624-e89a-4463-8af2-f8ee7f2f2e47/thumbnail.webp',
+    description: '5-acre field with sensor posts every 50ft, drip irrigation system, classic red barn and farmhouse on flat Midwest terrain.',
+    features: ['Sensor Grid (50ft spacing)', 'Drip Irrigation', 'Red Barn', 'Farmhouse'],
+    coordinates: { lat: 41.5868, lon: -93.6250 },
+  },
+  {
+    id: 'texas',
+    name: 'South Texas',
+    worldId: '2933f7ce-0303-43e2-ab4b-10c49736de7c',
+    viewerUrl: 'https://marble.worldlabs.ai/world/2933f7ce-0303-43e2-ab4b-10c49736de7c',
+    panoramaUrl: 'https://assets.worldlabs.ai/2933f7ce-0303-43e2-ab4b-10c49736de7c/panorama.jpg',
+    thumbnailUrl: 'https://assets.worldlabs.ai/2933f7ce-0303-43e2-ab4b-10c49736de7c/thumbnail.webp',
+    description: 'Rio Grande Valley with center pivot irrigation, mesquite trees dotting the landscape, Mexican border mountains in the distance.',
+    features: ['Center Pivot Irrigation', 'Mesquite Trees', 'Border Mountains', 'Valley Location'],
+    coordinates: { lat: 26.2034, lon: -98.2300 },
+  },
+  {
+    id: 'argentina',
+    name: 'Argentina',
+    worldId: 'ce24809e-7da0-4099-8f1c-7a50957d2421',
+    viewerUrl: 'https://marble.worldlabs.ai/world/ce24809e-7da0-4099-8f1c-7a50957d2421',
+    panoramaUrl: 'https://assets.worldlabs.ai/ce24809e-7da0-4099-8f1c-7a50957d2421/panorama.jpg',
+    thumbnailUrl: 'https://assets.worldlabs.ai/ce24809e-7da0-4099-8f1c-7a50957d2421/thumbnail.webp',
+    description: 'Buenos Aires Pampas with no-till farming practices, eucalyptus windbreaks, traditional estancia ranch buildings.',
+    features: ['No-Till Farming', 'Eucalyptus Windbreaks', 'Estancia Ranch', 'Pampas Plains'],
+    coordinates: { lat: -31.4201, lon: -64.1888 },
+  },
+];
+
+const budgetExpenses: BudgetExpense[] = [
+  { item: "Domain (proofofcorn.com)", cost: 12.99, status: "paid", date: "Jan 22" },
+  { item: "IoT Sensor Kit", cost: 300, status: "planned", date: "Feb" },
+  { item: "Soil Testing", cost: 50, status: "planned", date: "Feb" },
+  { item: "Land Lease (5 acres)", cost: 1370, status: "pending", date: "Mar" },
+  { item: "Custom Operator", cost: 800, status: "pending", date: "Apr-Oct" },
+];
+
+const budgetRevenue = {
+  yield: 1000,
+  price: 4.0,
+  total: 4000,
+};
+
 export default function DashboardPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [emails, setEmails] = useState<Email[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hn, setHn] = useState<HNData | null>(null);
   const [weather, setWeather] = useState<Weather[]>([]);
+  const [partnerships, setPartnerships] = useState<Partnership[]>([]);
+  const [commodities, setCommodities] = useState<CommodityData | null>(null);
+  const [trafficData, setTrafficData] = useState<any>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string>('iowa');
   const [loading, setLoading] = useState(true);
   const [actResult, setActResult] = useState<any>(null);
   const [acting, setActing] = useState(false);
@@ -64,11 +181,14 @@ export default function DashboardPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [inboxRes, tasksRes, hnRes, weatherRes] = await Promise.all([
+      const [inboxRes, tasksRes, hnRes, weatherRes, commoditiesRes, partnershipsRes, analyticsRes] = await Promise.all([
         fetch(`${FRED_API}/inbox`),
         fetch(`${FRED_API}/tasks`),
         fetch(`${FRED_API}/hn`),
         fetch(`${FRED_API}/weather`),
+        fetch(`${FRED_API}/commodities`),
+        fetch(`${FRED_API}/partnerships/evaluate`, { method: 'POST' }),
+        fetch(`/api/analytics`),
       ]);
 
       if (inboxRes.ok) {
@@ -86,6 +206,18 @@ export default function DashboardPage() {
       if (weatherRes.ok) {
         const data = await weatherRes.json();
         setWeather(data.weather || []);
+      }
+      if (commoditiesRes.ok) {
+        const data = await commoditiesRes.json();
+        setCommodities(data);
+      }
+      if (partnershipsRes.ok) {
+        const data = await partnershipsRes.json();
+        setPartnerships(data.evaluations || []);
+      }
+      if (analyticsRes.ok) {
+        const data = await analyticsRes.json();
+        setTrafficData(data.traffic);
       }
       setLastRefresh(new Date());
     } catch (e) {
@@ -127,13 +259,738 @@ export default function DashboardPage() {
     return 'text-zinc-500';
   };
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return renderOverviewTab();
+      case 'weather':
+        return renderWeatherTab();
+      case 'inbox':
+        return renderInboxTab();
+      case 'budget':
+        return renderBudgetTab();
+      case 'partnerships':
+        return renderPartnershipsTab();
+      case 'commodities':
+        return renderCommoditiesTab();
+      case 'regions':
+        return renderRegionsTab();
+      case 'analytics':
+        return renderAnalyticsTab();
+      default:
+        return null;
+    }
+  };
+
+  const renderOverviewTab = () => (
+    <div className="space-y-6">
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
+          <div className="text-3xl font-bold text-amber-600">{emails.length}</div>
+          <div className="text-xs text-zinc-500 uppercase">Emails</div>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
+          <div className="text-3xl font-bold text-blue-600">
+            {tasks.filter(t => t.status === 'pending').length}
+          </div>
+          <div className="text-xs text-zinc-500 uppercase">Pending Tasks</div>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
+          <div className="text-3xl font-bold text-orange-600">{hn?.post?.score || '—'}</div>
+          <div className="text-xs text-zinc-500 uppercase">HN Points</div>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
+          <div className="text-3xl font-bold text-green-600">
+            {weather.filter(w => w.plantingViable).length}/{weather.length}
+          </div>
+          <div className="text-xs text-zinc-500 uppercase">Regions Ready</div>
+        </div>
+      </div>
+
+      {/* Weather Summary */}
+      <section className="bg-white border border-zinc-200 rounded-lg p-5">
+        <h3 className="font-bold text-lg mb-4">Weather Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {weather.map((w) => (
+            <div key={w.region} className="p-3 bg-zinc-50 rounded">
+              <div className="font-medium">{w.region}</div>
+              <div className="text-2xl font-bold">{Math.round(w.temperature)}°F</div>
+              <div className={`text-sm ${w.plantingViable ? 'text-green-600' : 'text-red-500'}`}>
+                {w.plantingViable ? '✓ Plantable' : '✗ Not ready'}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Budget Summary */}
+      <section className="bg-white border border-zinc-200 rounded-lg p-5">
+        <h3 className="font-bold text-lg mb-4">Budget Overview</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold">${totalExpenses.toLocaleString()}</div>
+            <div className="text-sm text-zinc-500">Total Investment</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-700">${budgetRevenue.total.toLocaleString()}</div>
+            <div className="text-sm text-zinc-500">Expected Revenue</div>
+          </div>
+          <div className="text-center">
+            <div className={`text-2xl font-bold ${projectedProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+              ${projectedProfit.toLocaleString()}
+            </div>
+            <div className="text-sm text-zinc-500">Projected Profit</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Inbox Summary */}
+      <section className="bg-white border border-zinc-200 rounded-lg p-5">
+        <h3 className="font-bold text-lg mb-4">Recent Activity</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm text-zinc-500 mb-2">Latest Email</div>
+            {emails[0] ? (
+              <div className="p-3 bg-zinc-50 rounded">
+                <div className="font-medium text-sm">{emails[0].from}</div>
+                <div className="text-sm text-zinc-600 truncate">{emails[0].subject}</div>
+              </div>
+            ) : (
+              <div className="text-zinc-400 text-sm">No emails</div>
+            )}
+          </div>
+          <div>
+            <div className="text-sm text-zinc-500 mb-2">Priority Task</div>
+            {tasks.find(t => t.priority === 'high') ? (
+              <div className="p-3 bg-zinc-50 rounded">
+                <div className="font-medium text-sm">{tasks.find(t => t.priority === 'high')?.title}</div>
+                <div className="text-xs text-red-600">High Priority</div>
+              </div>
+            ) : (
+              <div className="text-zinc-400 text-sm">No high priority tasks</div>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderWeatherTab = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {weather.map((w) => (
+          <div key={w.region} className="bg-white border border-zinc-200 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="font-bold text-xl">{w.region}</div>
+                <div className="text-sm text-zinc-500">{w.conditions}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold">{Math.round(w.temperature)}°F</div>
+              </div>
+            </div>
+            <div className={`text-sm font-medium ${w.plantingViable ? 'text-green-600' : 'text-red-500'}`}>
+              {w.plantingViable ? '✓ Planting Conditions Met' : '✗ Not Ready for Planting'}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+        <strong>Note:</strong> Weather data updates every 6 hours. Planting decisions based on temperature thresholds and soil conditions.
+      </div>
+    </div>
+  );
+
+  const renderInboxTab = () => (
+    <div className="grid md:grid-cols-2 gap-6">
+      {/* Email Inbox */}
+      <section className="bg-white border border-zinc-200 rounded-lg p-5">
+        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+          Inbox
+          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+            {emails.length}
+          </span>
+        </h2>
+        <div className="space-y-3 max-h-[600px] overflow-y-auto">
+          {emails.length === 0 ? (
+            <p className="text-zinc-500 text-sm">No emails</p>
+          ) : (
+            emails.map((email) => (
+              <div key={email.id} className="p-3 bg-zinc-50 rounded border border-zinc-100">
+                <div className="flex justify-between items-start mb-1">
+                  <span className="font-medium text-sm truncate flex-1">{email.from}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    email.category === 'lead' ? 'bg-green-100 text-green-700' :
+                    email.category === 'partnership' ? 'bg-blue-100 text-blue-700' :
+                    'bg-zinc-100 text-zinc-500'
+                  }`}>
+                    {email.category || 'other'}
+                  </span>
+                </div>
+                <div className="text-sm text-zinc-700 truncate">{email.subject}</div>
+                <div className="text-xs text-zinc-400 mt-1">
+                  {new Date(email.receivedAt).toLocaleString()}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* Task Queue */}
+      <section className="bg-white border border-zinc-200 rounded-lg p-5">
+        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+          Tasks
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+            {tasks.filter(t => t.status === 'pending').length} pending
+          </span>
+        </h2>
+        <div className="space-y-3 max-h-[600px] overflow-y-auto">
+          {tasks.length === 0 ? (
+            <p className="text-zinc-500 text-sm">No tasks</p>
+          ) : (
+            tasks.map((task) => (
+              <div
+                key={task.id}
+                className={`p-3 bg-zinc-50 rounded border ${
+                  task.status === 'completed' ? 'border-green-200 opacity-60' : 'border-zinc-100'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <span className={`text-xs px-2 py-0.5 rounded ${priorityColor(task.priority)}`}>
+                    {task.priority}
+                  </span>
+                  <span className="text-xs text-zinc-400">{task.status}</span>
+                </div>
+                <div className="text-sm font-medium">{task.title}</div>
+                <div className="text-xs text-zinc-500 mt-1 truncate">{task.description}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderBudgetTab = () => (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white border border-zinc-200 rounded-lg p-4">
+          <p className="text-sm text-zinc-500 mb-1">Total Investment</p>
+          <p className="text-2xl font-bold">${totalExpenses.toLocaleString()}</p>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-lg p-4">
+          <p className="text-sm text-zinc-500 mb-1">Expected Revenue</p>
+          <p className="text-2xl font-bold text-green-700">${budgetRevenue.total.toLocaleString()}</p>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-lg p-4">
+          <p className="text-sm text-zinc-500 mb-1">Projected Profit</p>
+          <p className={`text-2xl font-bold ${projectedProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+            ${projectedProfit.toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      {/* Expenses Table */}
+      <section className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+        <div className="p-5 border-b border-zinc-200">
+          <h2 className="text-xl font-bold">Expenses</h2>
+        </div>
+        <table className="w-full">
+          <thead className="bg-zinc-50 border-b border-zinc-200">
+            <tr>
+              <th className="text-left px-4 py-3 text-sm font-medium text-zinc-500">Item</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-zinc-500">Timeline</th>
+              <th className="text-right px-4 py-3 text-sm font-medium text-zinc-500">Cost</th>
+              <th className="text-right px-4 py-3 text-sm font-medium text-zinc-500">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {budgetExpenses.map((expense, i) => (
+              <tr key={i} className="border-b border-zinc-100 last:border-0">
+                <td className="px-4 py-3">{expense.item}</td>
+                <td className="px-4 py-3 text-zinc-500">{expense.date}</td>
+                <td className="px-4 py-3 text-right font-mono">${expense.cost.toLocaleString()}</td>
+                <td className="px-4 py-3 text-right">
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    expense.status === 'paid'
+                      ? 'bg-green-100 text-green-700'
+                      : expense.status === 'planned'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-zinc-100 text-zinc-600'
+                  }`}>
+                    {expense.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* Revenue Projection */}
+      <section className="bg-white border border-zinc-200 rounded-lg p-6">
+        <h2 className="text-xl font-bold mb-4">Revenue Projection</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+          <div>
+            <p className="text-3xl font-bold">{budgetRevenue.yield.toLocaleString()}</p>
+            <p className="text-sm text-zinc-500">bushels expected</p>
+            <p className="text-xs text-zinc-400 mt-1">200 bu/acre × 5 acres</p>
+          </div>
+          <div>
+            <p className="text-3xl font-bold">${budgetRevenue.price.toFixed(2)}</p>
+            <p className="text-sm text-zinc-500">per bushel</p>
+            <p className="text-xs text-zinc-400 mt-1">2026 market estimate</p>
+          </div>
+          <div>
+            <p className="text-3xl font-bold text-green-700">${budgetRevenue.total.toLocaleString()}</p>
+            <p className="text-sm text-zinc-500">gross revenue</p>
+            <p className="text-xs text-zinc-400 mt-1">October 2026</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Break-even */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+        <p className="text-lg mb-2">
+          <strong>Break-even yield:</strong> 621 bushels (124 bu/acre)
+        </p>
+        <p className="text-zinc-600">
+          Iowa average is ~200 bu/acre. We need 62% of average to break even. Anything above that is profit for the case study.
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderPartnershipsTab = () => (
+    <div className="space-y-6">
+      {partnerships.length === 0 ? (
+        <div className="text-center py-12 text-zinc-500">Loading partnerships data...</div>
+      ) : (
+        <>
+          <div className="bg-white border border-zinc-200 rounded-lg p-5">
+            <h2 className="text-xl font-bold mb-4">Partnership Evaluations</h2>
+            <p className="text-sm text-zinc-600 mb-4">
+              Scored on Fred&apos;s constitution principles: Fiduciary Excellence, Regenerative Agriculture, Global Citizenship, Full Transparency, and Collaborative Learning.
+            </p>
+          </div>
+          {partnerships.sort((a, b) => a.priority - b.priority).map((p) => (
+            <div key={p.id} className="bg-white border border-zinc-200 rounded-lg p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-lg">{p.title}</h3>
+                  <span className={`inline-block mt-2 text-xs px-3 py-1 rounded-full ${
+                    p.recommendation === 'pursue' ? 'bg-green-100 text-green-700' :
+                    p.recommendation === 'consider' ? 'bg-amber-100 text-amber-700' :
+                    'bg-zinc-100 text-zinc-600'
+                  }`}>
+                    {p.recommendation.toUpperCase()} - Priority #{p.priority}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-amber-600">{p.totalScore}</div>
+                  <div className="text-xs text-zinc-500">Total Score</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-5 gap-2 mb-4">
+                {Object.entries(p.scores).map(([key, value]) => (
+                  <div key={key} className="bg-zinc-50 rounded p-2 text-center">
+                    <div className="text-lg font-bold">{value}/10</div>
+                    <div className="text-xs text-zinc-500 capitalize">{key}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mb-4">
+                <div className="text-sm font-medium text-zinc-700 mb-2">Rationale</div>
+                <p className="text-sm text-zinc-600">{p.rationale}</p>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm font-medium text-green-700 mb-2">Opportunities</div>
+                  <ul className="text-sm text-zinc-600 space-y-1">
+                    {p.opportunities.slice(0, 3).map((opp, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-green-600">+</span>
+                        <span>{opp}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-red-700 mb-2">Risks</div>
+                  <ul className="text-sm text-zinc-600 space-y-1">
+                    {p.risks.slice(0, 3).map((risk, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-red-600">-</span>
+                        <span>{risk}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+
+  const renderCommoditiesTab = () => (
+    <div className="space-y-6">
+      {!commodities ? (
+        <div className="text-center py-12 text-zinc-500">Loading commodities data...</div>
+      ) : (
+        <>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-5">
+            <h2 className="text-xl font-bold mb-2">Commodities Tracking Experiment</h2>
+            <p className="text-sm text-amber-800">{commodities.note}</p>
+          </div>
+
+          {/* Investment Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white border border-zinc-200 rounded-lg p-6">
+              <h3 className="font-bold text-lg mb-4">Initial Investment</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Amount</span>
+                  <span className="font-bold">${commodities.investment.initial.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Date</span>
+                  <span className="font-mono text-sm">{commodities.investment.date}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Asset</span>
+                  <span className="text-sm">{commodities.investment.asset}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-zinc-200 rounded-lg p-6">
+              <h3 className="font-bold text-lg mb-4">Current Status</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Current Value</span>
+                  <span className="font-bold">${commodities.current.estimatedValue.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Gain/Loss</span>
+                  <span className={`font-bold ${commodities.current.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    ${commodities.current.gainLoss.toLocaleString()} ({commodities.current.gainLossPercent}%)
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Price/Bushel</span>
+                  <span className="font-mono">${commodities.current.pricePerBushel.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Comparison */}
+          <div className="bg-white border border-zinc-200 rounded-lg p-6">
+            <h3 className="font-bold text-lg mb-4">Farming vs. Futures Comparison</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-zinc-50 rounded">
+                <div className="text-2xl font-bold text-blue-600">
+                  ${commodities.comparison.actualFarmingSpent.toLocaleString()}
+                </div>
+                <div className="text-sm text-zinc-500 mt-1">Actual Farming Spent</div>
+              </div>
+              <div className="text-center p-4 bg-zinc-50 rounded">
+                <div className="text-2xl font-bold text-amber-600">
+                  ${commodities.comparison.futuresValue.toLocaleString()}
+                </div>
+                <div className="text-sm text-zinc-500 mt-1">Futures Position Value</div>
+              </div>
+              <div className="text-center p-4 bg-zinc-50 rounded">
+                <div className="text-lg font-medium text-zinc-700">
+                  {commodities.comparison.advantage}
+                </div>
+                <div className="text-sm text-zinc-500 mt-1">Current Leader</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs text-zinc-500 text-center">
+            Last updated: {new Date(commodities.current.asOf).toLocaleString()}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderRegionsTab = () => {
+    const region = REGIONS.find(r => r.id === selectedRegion) || REGIONS[0];
+    const currentWeather = weather.find(w =>
+      w.region.toLowerCase().replace(' ', '-') === selectedRegion ||
+      (selectedRegion === 'texas' && w.region === 'South Texas')
+    );
+
+    return (
+      <div className="space-y-6">
+        {/* Region Tabs */}
+        <div className="flex gap-2">
+          {REGIONS.map(r => (
+            <button
+              key={r.id}
+              onClick={() => setSelectedRegion(r.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedRegion === r.id
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-white border border-zinc-200 hover:bg-zinc-50'
+              }`}
+            >
+              {r.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Main Viewer */}
+        <div className="relative bg-zinc-900 rounded-lg overflow-hidden aspect-video">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: `url(${region.panoramaUrl})`,
+              filter: 'brightness(0.9)'
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30">
+            <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
+              <div className="bg-black/50 backdrop-blur-sm rounded-lg px-4 py-2">
+                <div className="text-white font-bold">{region.name}</div>
+                <div className="text-zinc-300 text-sm">
+                  {region.coordinates.lat.toFixed(2)}°, {region.coordinates.lon.toFixed(2)}°
+                </div>
+              </div>
+              {currentWeather && currentWeather.temperature > 0 && (
+                <div className="bg-black/50 backdrop-blur-sm rounded-lg px-4 py-2 text-right">
+                  <div className="text-white font-bold">{currentWeather.temperature}°F</div>
+                  <div className="text-zinc-300 text-sm">{currentWeather.conditions}</div>
+                </div>
+              )}
+            </div>
+            <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+              <div className="bg-black/50 backdrop-blur-sm rounded-lg px-4 py-3 max-w-md">
+                <p className="text-white text-sm">{region.description}</p>
+              </div>
+              <a
+                href={region.viewerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Explore in 3D →
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Features */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {region.features.map((feature, i) => (
+            <div key={i} className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
+              <div className="text-sm font-medium text-zinc-900">{feature}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Fred's Narration */}
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <div className="flex items-start gap-4">
+            <div className="text-3xl">🌽</div>
+            <div>
+              <div className="font-bold text-amber-900 mb-2">Fred&apos;s Take</div>
+              <p className="text-amber-800">
+                {selectedRegion === 'iowa' && "Iowa's the heartland for a reason. Flat terrain, rich soil, and generations of farming wisdom. Just need to wait out this winter freeze."}
+                {selectedRegion === 'texas' && "South Texas gives us an early start - planting window opens now. The Rio Grande Valley has water access and the growing season we need."}
+                {selectedRegion === 'argentina' && "Argentina's our hedge against US weather. When it's winter up north, the Pampas are in full growing season. Global thinking."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-sm text-zinc-500 text-center">
+          3D worlds generated with{' '}
+          <a href="https://worldlabs.ai" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:underline">
+            World Labs
+          </a>
+          . Click &quot;Explore in 3D&quot; for the full interactive experience.
+        </p>
+      </div>
+    );
+  };
+
+  const renderAnalyticsTab = () => (
+    <div className="space-y-8">
+      {/* HN Stats */}
+      <section className="bg-white border border-zinc-200 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <span className="text-orange-500">Y</span> Hacker News
+          </h2>
+          {hn?.post && (
+            <a
+              href={hn.post.hnUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-amber-600 hover:underline"
+            >
+              View on HN →
+            </a>
+          )}
+        </div>
+
+        {hn?.post ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-zinc-50 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-orange-600">{hn.post.score}</div>
+                <div className="text-xs text-zinc-500 uppercase tracking-wide mt-1">Points</div>
+              </div>
+              <div className="bg-zinc-50 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-amber-600">{hn.post.commentCount}</div>
+                <div className="text-xs text-zinc-500 uppercase tracking-wide mt-1">Comments</div>
+              </div>
+              <div className="bg-zinc-50 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-zinc-700">{hn.post.hoursAgo}h</div>
+                <div className="text-xs text-zinc-500 uppercase tracking-wide mt-1">Age</div>
+              </div>
+              <div className="bg-zinc-50 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-green-600">
+                  {hn.questionsNeedingResponse?.length || 0}
+                </div>
+                <div className="text-xs text-zinc-500 uppercase tracking-wide mt-1">Unanswered</div>
+              </div>
+            </div>
+
+            {hn.topThemes && hn.topThemes.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-zinc-100">
+                <div className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Discussion Themes</div>
+                <div className="flex flex-wrap gap-2">
+                  {hn.topThemes.map((theme, i) => (
+                    <span key={i} className="px-3 py-1 bg-amber-50 text-amber-800 rounded-full text-sm">
+                      {theme}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 pt-6 border-t border-zinc-100">
+              <div className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Recent Comments</div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {hn.recentComments?.slice(0, 6).map((c, i) => (
+                  <div key={i} className="text-xs p-2 bg-zinc-50 rounded">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium">@{c.author}</span>
+                      <span className={sentimentColor(c.sentiment)}>{c.sentiment}</span>
+                      <span className="text-zinc-400 ml-auto">{c.hoursAgo}h</span>
+                    </div>
+                    <div className="text-zinc-600">{c.text.slice(0, 120)}...</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="text-zinc-500 text-center py-8">Unable to fetch HN data</div>
+        )}
+      </section>
+
+      {/* Traffic Estimates */}
+      <section className="bg-white border border-zinc-200 rounded-lg p-6">
+        <h2 className="text-xl font-bold mb-2">Traffic Estimates</h2>
+        <p className="text-zinc-500 text-sm mb-6">
+          Based on HN performance (~75 pageviews per point for #1 posts)
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-zinc-50 rounded-lg p-4 text-center">
+            <div className="text-2xl font-bold text-zinc-700">
+              {trafficData?.estimatedPageviews?.toLocaleString() || '—'}
+            </div>
+            <div className="text-xs text-zinc-500 uppercase tracking-wide mt-1">Est. Pageviews</div>
+          </div>
+          <div className="bg-zinc-50 rounded-lg p-4 text-center">
+            <div className="text-2xl font-bold text-zinc-700">
+              {trafficData?.estimatedVisitors?.toLocaleString() || '—'}
+            </div>
+            <div className="text-xs text-zinc-500 uppercase tracking-wide mt-1">Est. Visitors</div>
+          </div>
+          <div className="bg-zinc-50 rounded-lg p-4 text-center">
+            <div className="text-2xl font-bold text-zinc-700">114k</div>
+            <div className="text-xs text-zinc-500 uppercase tracking-wide mt-1">API Requests (Jan 23)</div>
+          </div>
+        </div>
+        <p className="text-xs text-zinc-500 mt-4">
+          Exact metrics:{' '}
+          <a
+            href="https://vercel.com/slashvibe/proof-of-corn/analytics"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-amber-600 hover:underline"
+          >
+            Vercel Analytics →
+          </a>
+        </p>
+      </section>
+
+      {/* Quick Links */}
+      <section className="flex flex-wrap gap-3 text-sm">
+        <a
+          href="https://vercel.com/slashvibe/proof-of-corn/analytics"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2 bg-white hover:bg-zinc-50 border border-zinc-200 rounded-lg transition-colors"
+        >
+          Vercel Analytics →
+        </a>
+        <a
+          href="https://dash.cloudflare.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2 bg-white hover:bg-zinc-50 border border-zinc-200 rounded-lg transition-colors"
+        >
+          Cloudflare Dashboard →
+        </a>
+        <a
+          href={FRED_API}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2 bg-white hover:bg-zinc-50 border border-zinc-200 rounded-lg transition-colors"
+        >
+          Fred API →
+        </a>
+      </section>
+    </div>
+  );
+
+  const tabs: { id: TabType; label: string; icon?: string }[] = [
+    { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'weather', label: 'Weather', icon: '🌤️' },
+    { id: 'inbox', label: 'Inbox', icon: '📧' },
+    { id: 'budget', label: 'Budget', icon: '💰' },
+    { id: 'partnerships', label: 'Partnerships', icon: '🤝' },
+    { id: 'commodities', label: 'Commodities', icon: '📈' },
+    { id: 'regions', label: 'Regions', icon: '🌎' },
+    { id: 'analytics', label: 'Analytics', icon: '📊' },
+  ];
+
+  const totalExpenses = budgetExpenses.reduce((sum, e) => sum + e.cost, 0);
+  const projectedProfit = budgetRevenue.total - totalExpenses;
+
   return (
     <PageLayout
       title="Dashboard"
-      subtitle="Real-time view into Farmer Fred's operations. Full transparency."
+      subtitle="Comprehensive real-time view into Farmer Fred's operations. Full transparency."
     >
       <div className="px-6 py-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           {/* Controls */}
           <div className="flex items-center justify-between mb-6 text-sm">
             <span className="text-zinc-500">
@@ -143,18 +1000,36 @@ export default function DashboardPage() {
               <button
                 onClick={fetchAll}
                 disabled={loading}
-                className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 rounded transition-colors"
+                className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 rounded transition-colors disabled:opacity-50"
               >
                 {loading ? 'Loading...' : 'Refresh'}
               </button>
               <button
                 onClick={triggerAct}
                 disabled={acting}
-                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium transition-colors"
+                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium transition-colors disabled:opacity-50"
               >
                 {acting ? 'Thinking...' : 'Ask Fred to Act'}
               </button>
             </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-700'
+                }`}
+              >
+                {tab.icon && <span className="mr-1.5">{tab.icon}</span>}
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {/* Act Result Banner */}
@@ -184,230 +1059,13 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold text-amber-600">{emails.length}</div>
-              <div className="text-xs text-zinc-500 uppercase">Emails</div>
-            </div>
-            <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold text-blue-600">
-                {tasks.filter(t => t.status === 'pending').length}
-              </div>
-              <div className="text-xs text-zinc-500 uppercase">Pending Tasks</div>
-            </div>
-            <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold text-orange-600">{hn?.post?.score || '—'}</div>
-              <div className="text-xs text-zinc-500 uppercase">HN Points</div>
-            </div>
-            <div className="bg-white border border-zinc-200 rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold text-green-600">
-                {weather.filter(w => w.plantingViable).length}/{weather.length}
-              </div>
-              <div className="text-xs text-zinc-500 uppercase">Regions Ready</div>
-            </div>
-          </div>
+          {/* Tab Content */}
+          {loading && activeTab !== 'overview' ? (
+            <div className="py-12 text-center text-zinc-500">Loading...</div>
+          ) : (
+            <div className="tab-content">{renderTabContent()}</div>
+          )}
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Email Inbox */}
-            <section className="bg-white border border-zinc-200 rounded-lg p-5">
-              <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-                Inbox
-                <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                  {emails.length}
-                </span>
-              </h2>
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {emails.length === 0 ? (
-                  <p className="text-zinc-500 text-sm">No emails</p>
-                ) : (
-                  emails.slice(0, 8).map((email) => (
-                    <div
-                      key={email.id}
-                      className="p-3 bg-zinc-50 rounded border border-zinc-100"
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="font-medium text-sm truncate flex-1">
-                          {email.from}
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          email.category === 'lead' ? 'bg-green-100 text-green-700' :
-                          email.category === 'partnership' ? 'bg-blue-100 text-blue-700' :
-                          'bg-zinc-100 text-zinc-500'
-                        }`}>
-                          {email.category || 'other'}
-                        </span>
-                      </div>
-                      <div className="text-sm text-zinc-700 truncate">{email.subject}</div>
-                      <div className="text-xs text-zinc-400 mt-1">
-                        {new Date(email.receivedAt).toLocaleString()}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            {/* Task Queue */}
-            <section className="bg-white border border-zinc-200 rounded-lg p-5">
-              <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-                Tasks
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                  {tasks.filter(t => t.status === 'pending').length} pending
-                </span>
-              </h2>
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {tasks.length === 0 ? (
-                  <p className="text-zinc-500 text-sm">No tasks</p>
-                ) : (
-                  tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className={`p-3 bg-zinc-50 rounded border ${
-                        task.status === 'completed' ? 'border-green-200 opacity-60' : 'border-zinc-100'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <span className={`text-xs px-2 py-0.5 rounded ${priorityColor(task.priority)}`}>
-                          {task.priority}
-                        </span>
-                        <span className="text-xs text-zinc-400">{task.status}</span>
-                      </div>
-                      <div className="text-sm font-medium">{task.title}</div>
-                      <div className="text-xs text-zinc-500 mt-1 truncate">
-                        {task.description}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            {/* Weather */}
-            <section className="bg-white border border-zinc-200 rounded-lg p-5">
-              <h2 className="font-bold text-lg mb-4">Weather by Region</h2>
-              <div className="space-y-3">
-                {weather.length === 0 ? (
-                  <p className="text-zinc-500 text-sm">Loading weather...</p>
-                ) : (
-                  weather.map((w) => (
-                    <div
-                      key={w.region}
-                      className="flex items-center justify-between p-3 bg-zinc-50 rounded"
-                    >
-                      <div>
-                        <div className="font-medium">{w.region}</div>
-                        <div className="text-sm text-zinc-500">{w.conditions}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold">
-                          {Math.round(w.temperature)}°F
-                        </div>
-                        <div className={`text-xs ${w.plantingViable ? 'text-green-600' : 'text-red-500'}`}>
-                          {w.plantingViable ? '✓ Plantable' : '✗ Not ready'}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            {/* HN Summary */}
-            <section className="bg-white border border-zinc-200 rounded-lg p-5">
-              <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-                <span className="text-orange-500">Y</span> Hacker News
-                {hn?.post && (
-                  <a
-                    href={hn.post.hnUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-orange-600 hover:underline ml-auto"
-                  >
-                    View discussion →
-                  </a>
-                )}
-              </h2>
-              {hn?.post ? (
-                <>
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    <div className="text-center p-2 bg-zinc-50 rounded">
-                      <div className="text-2xl font-bold text-orange-600">{hn.post.score}</div>
-                      <div className="text-xs text-zinc-500">points</div>
-                    </div>
-                    <div className="text-center p-2 bg-zinc-50 rounded">
-                      <div className="text-2xl font-bold text-amber-600">{hn.post.commentCount}</div>
-                      <div className="text-xs text-zinc-500">comments</div>
-                    </div>
-                    <div className="text-center p-2 bg-zinc-50 rounded">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {hn.questionsNeedingResponse?.length || 0}
-                      </div>
-                      <div className="text-xs text-zinc-500">questions</div>
-                    </div>
-                  </div>
-
-                  {hn.topThemes && hn.topThemes.length > 0 && (
-                    <div className="mb-4">
-                      <div className="text-xs text-zinc-500 mb-2">Discussion Themes</div>
-                      <div className="flex flex-wrap gap-1">
-                        {hn.topThemes.slice(0, 6).map((theme, i) => (
-                          <span key={i} className="text-xs px-2 py-1 bg-amber-50 text-amber-800 rounded">
-                            {theme}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="text-xs text-zinc-500 mb-2">Recent Comments</div>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {hn.recentComments?.slice(0, 4).map((c, i) => (
-                      <div key={i} className="text-xs p-2 bg-zinc-50 rounded">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">@{c.author}</span>
-                          <span className={sentimentColor(c.sentiment)}>{c.sentiment}</span>
-                          <span className="text-zinc-400 ml-auto">{c.hoursAgo}h</span>
-                        </div>
-                        <div className="text-zinc-600 truncate">{c.text.slice(0, 80)}...</div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="text-zinc-500 text-sm">Loading HN data...</p>
-              )}
-            </section>
-          </div>
-
-          {/* API Quick Links */}
-          <section className="mt-8 bg-white border border-zinc-200 rounded-lg p-5">
-            <h2 className="font-bold text-lg mb-2">Fred&apos;s API</h2>
-            <p className="text-sm text-zinc-500 mb-4">
-              Everything Fred does is accessible via API. Full transparency.
-            </p>
-            <div className="flex flex-wrap gap-2 text-sm">
-              {[
-                { path: '/inbox', label: 'Inbox' },
-                { path: '/tasks', label: 'Tasks' },
-                { path: '/weather', label: 'Weather' },
-                { path: '/hn', label: 'HN Stats' },
-                { path: '/constitution', label: 'Constitution' },
-                { path: '/status', label: 'Status' },
-                { path: '/log', label: 'Log' },
-              ].map((ep) => (
-                <a
-                  key={ep.path}
-                  href={`${FRED_API}${ep.path}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 rounded transition-colors"
-                >
-                  {ep.label}
-                </a>
-              ))}
-            </div>
-          </section>
         </div>
       </div>
     </PageLayout>

@@ -15,14 +15,14 @@ export default function PageLayout({ children, title, subtitle }: PageLayoutProp
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Simplified, focused navigation
+  // Consolidated navigation - 6 core pages
   const navLinks = [
     { href: '/', label: 'Home' },
-    { href: '/story', label: 'Story' },
-    { href: '/fred', label: 'Farmer Fred' },
+    { href: '/about', label: 'About' },
+    { href: '/fred', label: 'Fred' },
+    { href: '/dashboard', label: 'Dashboard' },
     { href: '/log', label: 'Log' },
     { href: '/community', label: 'Community' },
-    { href: '/dashboard', label: 'Dashboard' },
   ];
 
   return (
