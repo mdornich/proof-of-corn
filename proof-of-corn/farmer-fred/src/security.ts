@@ -172,6 +172,8 @@ function calculateSpamScore(email: {
  * Example: david@purdue.edu -> d***@p***.edu
  */
 export function redactEmail(email: string): string {
+  if (!email || typeof email !== 'string') return "***@***.***";
+
   const [local, domain] = email.split("@");
   if (!local || !domain) return "***@***.***";
 
@@ -192,6 +194,8 @@ export function redactEmail(email: string): string {
  * - Limit length
  */
 export function sanitizeEmailBody(body: string, maxLength = 200): string {
+  if (!body || typeof body !== 'string') return '';
+
   let sanitized = body;
 
   // Redact email addresses
