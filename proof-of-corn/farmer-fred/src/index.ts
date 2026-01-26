@@ -213,20 +213,40 @@ export default {
    * Cron Trigger Handler - Daily check at 6 AM UTC
    */
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    console.log(`[${new Date().toISOString()}] Cron triggered: Daily check`);
+    const now = new Date();
+    const hour = now.getUTCHours();
+    const isMainCheck = hour === 6; // 6 AM UTC
+
+    console.log(`[${now.toISOString()}] Cron triggered: ${isMainCheck ? 'Full daily check' : 'HN sync'}`);
 
     try {
-      const result = await performDailyCheck(env);
-      console.log("Daily check completed:", result.decision);
+      if (isMainCheck) {
+        // Full daily check (weather, emails, tasks, HN)
+        const result = await performDailyCheck(env);
+        console.log("Daily check completed:", result.decision);
 
-      // Store result in KV
-      await env.FARMER_FRED_KV.put(
-        `daily-check:${new Date().toISOString().split("T")[0]}`,
-        JSON.stringify(result),
-        { expirationTtl: 60 * 60 * 24 * 30 } // 30 days
-      );
+        // Store result in KV
+        await env.FARMER_FRED_KV.put(
+          `daily-check:${now.toISOString().split("T")[0]}`,
+          JSON.stringify(result),
+          { expirationTtl: 60 * 60 * 24 * 30 } // 30 days
+        );
+      } else {
+        // HN-only sync to keep community engagement fresh
+        console.log("Running HN sync...");
+        const hnData = await getHNContext();
+        await env.FARMER_FRED_KV.put(
+          'hn:latest',
+          JSON.stringify(hnData),
+          { expirationTtl: 60 * 60 * 6 } // 6 hours cache
+        );
+        console.log("HN sync completed:", {
+          comments: hnData.recentComments.length,
+          score: hnData.post.score
+        });
+      }
     } catch (error) {
-      console.error("Daily check failed:", error);
+      console.error("Cron job failed:", error);
     }
   }
 };
@@ -454,6 +474,20 @@ function renderConstitutionHTML(): string {
 }
 
 async function handleHN(env: Env, headers: Record<string, string>): Promise<Response> {
+  // Try to get cached data first (updated every 4 hours by cron)
+  const cachedData = await env.FARMER_FRED_KV.get("hn:latest", "json");
+
+  if (cachedData) {
+    // Return cached data with metadata
+    return json({
+      ...cachedData,
+      formatted: formatHNContextForAgent(cachedData),
+      cached: true,
+      lastUpdated: cachedData.lastChecked || new Date().toISOString()
+    }, headers);
+  }
+
+  // Fallback: fetch fresh data if cache miss (shouldn't happen with cron)
   const lastCheckStr = await env.FARMER_FRED_KV.get("hn:lastCheck");
   const lastCheckTime = lastCheckStr ? new Date(lastCheckStr) : undefined;
 
@@ -462,12 +496,19 @@ async function handleHN(env: Env, headers: Record<string, string>): Promise<Resp
     return json({ error: "Failed to fetch HN data" }, headers, 500);
   }
 
+  // Cache it for next time
+  await env.FARMER_FRED_KV.put("hn:latest", JSON.stringify({
+    ...hnContext,
+    lastChecked: new Date().toISOString()
+  }), { expirationTtl: 60 * 60 * 6 }); // 6 hours
+
   await env.FARMER_FRED_KV.put("hn:lastCheck", new Date().toISOString());
 
   return json({
     ...hnContext,
     formatted: formatHNContextForAgent(hnContext),
-    lastChecked: new Date().toISOString()
+    cached: false,
+    lastUpdated: new Date().toISOString()
   }, headers);
 }
 

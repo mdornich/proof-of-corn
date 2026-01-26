@@ -10,7 +10,9 @@
       "Bash(git commit:*)",
       "Bash(npm run build:*)",
       "Bash(wrangler deploy:*)",
-      "Bash(npx wrangler secret put ADMIN_PASSWORD)"
+      "Bash(npx wrangler secret put ADMIN_PASSWORD)",
+      "Bash(printf:*)",
+      "mcp__gmail__gmail_search"
     ]
   }
 }

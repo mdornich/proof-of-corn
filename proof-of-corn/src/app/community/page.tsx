@@ -25,6 +25,8 @@ interface HNData {
   topThemes: string[];
   recentComments: HNComment[];
   questionsNeedingResponse: HNComment[];
+  lastUpdated?: string;
+  cached?: boolean;
 }
 
 interface Learning {
@@ -60,7 +62,7 @@ export default function CommunityPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  useEffect(() => {
+  const fetchData = () => {
     Promise.all([
       fetch(`${FRED_API}/hn`).then(res => res.json()).catch(() => null),
       fetch(`${FRED_API}/learnings`).then(res => res.json()).catch(() => ({ learnings: [] })),
@@ -71,6 +73,14 @@ export default function CommunityPage() {
       setFeedback(fb?.feedback || []);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    fetchData();
+
+    // Auto-refresh every 5 minutes to keep data fresh
+    const interval = setInterval(fetchData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const submitFeedback = async (e: React.FormEvent) => {
@@ -221,15 +231,27 @@ export default function CommunityPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-2xl font-bold text-orange-600">Y</span>
                         <span className="font-bold">Hacker News</span>
+                        {hnData.lastUpdated && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                            ● Live
+                          </span>
+                        )}
                       </div>
-                      <a
-                        href={hnData.post.hnUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-orange-600 hover:underline text-sm"
-                      >
-                        View Discussion →
-                      </a>
+                      <div className="flex items-center gap-3">
+                        {hnData.lastUpdated && (
+                          <span className="text-xs text-zinc-500">
+                            Updated {new Date(hnData.lastUpdated).toLocaleTimeString()}
+                          </span>
+                        )}
+                        <a
+                          href={hnData.post.hnUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-orange-600 hover:underline text-sm"
+                        >
+                          View Discussion →
+                        </a>
+                      </div>
                     </div>
                     <div className="grid grid-cols-4 gap-4 text-center">
                       <div>

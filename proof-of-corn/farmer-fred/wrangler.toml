@@ -2,9 +2,14 @@ name = "farmer-fred"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
-# Triggers - Daily check at 6 AM UTC (midnight CST)
+# Triggers
+# - Full check at 6 AM UTC (midnight CST) - weather, emails, tasks
+# - HN sync every 4 hours - keeps community engagement fresh
 [triggers]
-crons = ["0 6 * * *"]
+crons = [
+  "0 6 * * *",      # Full daily check
+  "0 */4 * * *"     # HN sync every 4 hours
+]
 
 # Environment variables (secrets added via wrangler secret)
 [vars]
