@@ -23,11 +23,20 @@ import { CONSTITUTION, SYSTEM_PROMPT } from "./constitution";
 import { fetchAllRegionsWeather, evaluatePlantingConditions } from "./tools/weather";
 import { createLogEntry, logDecision, logWeatherCheck, formatLogEntry, LogEntry } from "./tools/log";
 import { getHNContext, formatHNContextForAgent } from "./tools/hn";
+import {
+  checkEmailSecurity,
+  redactEmail,
+  sanitizeEmailBody,
+  checkRateLimit,
+  verifyAdminAuth,
+  SecurityCheck
+} from "./security";
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
   OPENWEATHER_API_KEY: string;
   RESEND_API_KEY: string;
+  ADMIN_PASSWORD: string;
   FARMER_FRED_KV: KVNamespace;
   FARMER_FRED_DB: D1Database;
   FARMER_FRED_STATE: DurableObjectNamespace;
@@ -121,6 +130,16 @@ export default {
 
         case "/inbox":
           return await handleInbox(env, corsHeaders);
+
+        case "/inbox/public":
+          return await handleInboxPublic(env, corsHeaders);
+
+        case "/admin/inbox":
+          // Admin-only endpoint - requires authentication
+          if (!verifyAdminAuth(request, env.ADMIN_PASSWORD)) {
+            return json({ error: "Unauthorized" }, corsHeaders, 401);
+          }
+          return await handleAdminInbox(env, corsHeaders);
 
         case "/send":
           if (request.method !== "POST") {
@@ -463,7 +482,8 @@ interface Email {
   body: string;
   receivedAt: string;
   status: "unread" | "read" | "replied" | "archived";
-  category?: "lead" | "partnership" | "question" | "spam" | "other";
+  category?: "lead" | "partnership" | "question" | "spam" | "other" | "suspicious";
+  securityCheck?: SecurityCheck;
 }
 
 interface Task {
@@ -525,6 +545,99 @@ async function handleInbox(env: Env, headers: Record<string, string>): Promise<R
       leads,
       needsResponse: emails.filter(e => e.status === "unread" || e.status === "read").length
     },
+    timestamp: new Date().toISOString()
+  }, headers);
+}
+
+/**
+ * Public inbox view - redacted for safety
+ * Hides full email addresses, sanitizes bodies, filters suspicious emails
+ */
+async function handleInboxPublic(env: Env, headers: Record<string, string>): Promise<Response> {
+  const emailKeys = await env.FARMER_FRED_KV.list({ prefix: "email:" });
+  const emails: Email[] = [];
+
+  for (const key of emailKeys.keys) {
+    const email = await env.FARMER_FRED_KV.get(key.name, "json") as Email | null;
+    if (email) emails.push(email);
+  }
+
+  // Filter out suspicious/spam emails from public view
+  const safeEmails = emails.filter(e =>
+    e.category !== "suspicious" &&
+    e.category !== "spam" &&
+    (!e.securityCheck || e.securityCheck.recommendation !== "block")
+  );
+
+  // Sort by received date, newest first
+  safeEmails.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
+  // Redact sensitive info for public display
+  const redactedEmails = safeEmails.map(email => ({
+    id: email.id,
+    from: redactEmail(email.from),
+    subject: email.subject,
+    summary: sanitizeEmailBody(email.body, 150),
+    receivedAt: email.receivedAt,
+    status: email.status,
+    category: email.category,
+    securityScore: email.securityCheck ? {
+      isSafe: email.securityCheck.isSafe,
+      threat: email.securityCheck.threat,
+      confidence: email.securityCheck.confidence
+    } : undefined
+  }));
+
+  const unread = safeEmails.filter(e => e.status === "unread").length;
+  const leads = safeEmails.filter(e => e.category === "lead").length;
+  const suspicious = emails.filter(e => e.category === "suspicious" || e.securityCheck?.recommendation === "block").length;
+
+  return json({
+    emails: redactedEmails,
+    summary: {
+      total: safeEmails.length,
+      unread,
+      leads,
+      suspicious, // Count but don't show details
+      needsResponse: safeEmails.filter(e => e.status === "unread" || e.status === "read").length
+    },
+    note: "This is a redacted public view. Email addresses and bodies are sanitized. Suspicious emails are hidden.",
+    timestamp: new Date().toISOString()
+  }, headers);
+}
+
+/**
+ * Admin inbox view - full access with authentication
+ * Shows everything including suspicious emails and full content
+ */
+async function handleAdminInbox(env: Env, headers: Record<string, string>): Promise<Response> {
+  const emailKeys = await env.FARMER_FRED_KV.list({ prefix: "email:" });
+  const emails: Email[] = [];
+
+  for (const key of emailKeys.keys) {
+    const email = await env.FARMER_FRED_KV.get(key.name, "json") as Email | null;
+    if (email) emails.push(email);
+  }
+
+  // Sort by received date, newest first
+  emails.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
+  const unread = emails.filter(e => e.status === "unread").length;
+  const leads = emails.filter(e => e.category === "lead").length;
+  const suspicious = emails.filter(e => e.category === "suspicious").length;
+  const blocked = emails.filter(e => e.securityCheck?.recommendation === "block").length;
+
+  return json({
+    emails, // Full unredacted emails
+    summary: {
+      total: emails.length,
+      unread,
+      leads,
+      suspicious,
+      blocked,
+      needsResponse: emails.filter(e => e.status === "unread" || e.status === "read").length
+    },
+    note: "Admin view - full unredacted access to all emails including suspicious/blocked.",
     timestamp: new Date().toISOString()
   }, headers);
 }
