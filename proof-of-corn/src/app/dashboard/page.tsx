@@ -182,7 +182,7 @@ export default function DashboardPage() {
     setLoading(true);
     try {
       const [inboxRes, tasksRes, hnRes, weatherRes, commoditiesRes, partnershipsRes, analyticsRes] = await Promise.all([
-        fetch(`${FRED_API}/inbox`),
+        fetch(`${FRED_API}/inbox/public`),
         fetch(`${FRED_API}/tasks`),
         fetch(`${FRED_API}/hn`),
         fetch(`${FRED_API}/weather`),
@@ -405,40 +405,67 @@ export default function DashboardPage() {
   );
 
   const renderInboxTab = () => (
-    <div className="grid md:grid-cols-2 gap-6">
-      {/* Email Inbox */}
-      <section className="bg-white border border-zinc-200 rounded-lg p-5">
-        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-          Inbox
-          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-            {emails.length}
-          </span>
-        </h2>
-        <div className="space-y-3 max-h-[600px] overflow-y-auto">
-          {emails.length === 0 ? (
-            <p className="text-zinc-500 text-sm">No emails</p>
-          ) : (
-            emails.map((email) => (
-              <div key={email.id} className="p-3 bg-zinc-50 rounded border border-zinc-100">
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-medium text-sm truncate flex-1">{email.from}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${
-                    email.category === 'lead' ? 'bg-green-100 text-green-700' :
-                    email.category === 'partnership' ? 'bg-blue-100 text-blue-700' :
-                    'bg-zinc-100 text-zinc-500'
-                  }`}>
-                    {email.category || 'other'}
-                  </span>
-                </div>
-                <div className="text-sm text-zinc-700 truncate">{email.subject}</div>
-                <div className="text-xs text-zinc-400 mt-1">
-                  {new Date(email.receivedAt).toLocaleString()}
-                </div>
-              </div>
-            ))
-          )}
+    <div className="space-y-6">
+      {/* Public View Notice */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <div className="text-2xl">🔒</div>
+          <div className="flex-1">
+            <p className="font-semibold text-blue-900 text-sm mb-1">Public Redacted View</p>
+            <p className="text-xs text-blue-800">
+              Email addresses are redacted (d***@p***.edu) and bodies are sanitized for public transparency.
+              Suspicious emails are hidden. Admin users can access the full unredacted inbox.
+            </p>
+          </div>
         </div>
-      </section>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Email Inbox */}
+        <section className="bg-white border border-zinc-200 rounded-lg p-5">
+          <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+            Inbox
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+              {emails.length}
+            </span>
+          </h2>
+          <div className="space-y-3 max-h-[600px] overflow-y-auto">
+            {emails.length === 0 ? (
+              <p className="text-zinc-500 text-sm">No emails</p>
+            ) : (
+              emails.map((email: any) => (
+                <div key={email.id} className="p-3 bg-zinc-50 rounded border border-zinc-100">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-medium text-sm truncate flex-1" title="Email redacted for privacy">
+                      {email.from}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      email.category === 'lead' ? 'bg-green-100 text-green-700' :
+                      email.category === 'partnership' ? 'bg-blue-100 text-blue-700' :
+                      'bg-zinc-100 text-zinc-500'
+                    }`}>
+                      {email.category || 'other'}
+                    </span>
+                  </div>
+                  <div className="text-sm text-zinc-700 font-medium mb-1">{email.subject}</div>
+                  {email.summary && (
+                    <div className="text-xs text-zinc-600 mb-2 line-clamp-2">{email.summary}</div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-zinc-400">
+                      {new Date(email.receivedAt).toLocaleString()}
+                    </span>
+                    {email.securityScore && !email.securityScore.isSafe && (
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
+                        Flagged
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
 
       {/* Task Queue */}
       <section className="bg-white border border-zinc-200 rounded-lg p-5">
