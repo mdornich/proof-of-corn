@@ -1,5 +1,6 @@
-# When Can Farmer Fred Sell Roasted Corn at Union Square Farmers Market?
+# AI to Table: When Can Farmer Fred Sell Roasted Corn at Union Square?
 
+**Concept**: "AI to Table" — Farm-to-table, but orchestrated by AI
 **Target**: Fred's stand at Union Square Farmers Market, NYC
 **Product**: Fresh roasted corn on the cob
 **Question**: When is this possible?
@@ -173,14 +174,16 @@ Fred can plan and coordinate Union Square stand autonomously, but final decision
 
 **Imagine the scene**: August 2, 2026, Union Square Greenmarket
 
-- Signage: "PROOF OF CORN - Grown by Autonomous AI Agent"
+- Signage: "AI TO TABLE — PROOF OF CORN"
+- Subtitle: "Farm-to-table, but AI orchestrated"
 - iPad at stand livestreaming Fred's "POV" (weather dashboard, decision logs scrolling)
 - Representative (human) explains: "I'm just the hands. The brain is Claude Code running in the cloud."
 - Every ear of corn has a QR code linking to its full growing history (soil moisture logs, irrigation decisions, weather data)
-- NY Times food section covers it: "The First AI Farmer Comes to Union Square"
+- "AI to Table" stickers on every bag
+- NY Times food section covers it: "AI to Table: The First Autonomous Farmer Comes to Union Square"
 
 **The pitch**:
-"This corn was grown by an AI agent named Farmer Fred. He decided when to plant, when to irrigate, when to harvest. I'm just here to roast it. Want to know what the weather was like on June 15 when he decided to water? Scan the QR code."
+"AI to Table. Farm-to-table, but orchestrated by an AI agent named Farmer Fred. He decided when to plant, when to irrigate, when to harvest. I'm just here to roast it. Want to know what the weather was like on June 15 when he decided to water? Scan the QR code."
 
 ---
 
