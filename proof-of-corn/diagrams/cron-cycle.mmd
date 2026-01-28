@@ -1,0 +1,16 @@
+flowchart TD
+    TRIGGER["Cron Trigger\nEvery 6 Hours"] --> WEATHER["Fetch Weather\n3 Regions"]
+    WEATHER --> EMAILS["Process Emails\nNew Inbound"]
+    EMAILS --> TASKS["Review Tasks\nDue + Overdue"]
+    TASKS --> CLAUDE["Claude Analysis\nPrioritize Actions"]
+    CLAUDE --> ACTIONS["Execute Actions\nReplies, Updates, Logs"]
+    ACTIONS --> ALERTS["Send Alerts\nWeather / Task / Budget"]
+    ALERTS -.->|"6 hours"| TRIGGER
+
+    style TRIGGER fill:#fafafa,stroke:#a1a1aa,color:#1a1a1a
+    style WEATHER fill:#2563eb,stroke:#1e40af,color:#fff
+    style EMAILS fill:#2563eb,stroke:#1e40af,color:#fff
+    style TASKS fill:#d97706,stroke:#92400e,color:#fff
+    style CLAUDE fill:#2563eb,stroke:#1e40af,color:#fff
+    style ACTIONS fill:#16a34a,stroke:#15803d,color:#fff
+    style ALERTS fill:#d97706,stroke:#92400e,color:#fff

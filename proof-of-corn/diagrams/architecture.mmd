@@ -1,0 +1,28 @@
+graph TD
+    subgraph "Farmer Fred — System Architecture"
+        direction TB
+
+        EMAIL["Email Ingest<br/>seth@proofofcorn.com"] --> WORKER["Cloudflare Worker<br/>(Farmer Fred)"]
+        CRON["6-Hour Cron Trigger"] --> WORKER
+
+        WORKER --> KV["KV Store<br/>Weather Cache"]
+        WORKER --> D1["D1 Database<br/>Tasks, Contacts, History"]
+        WORKER --> CLAUDE["Claude API<br/>Decision Engine"]
+
+        WORKER --> WEATHER["Weather API<br/>3 Regions"]
+        WORKER --> SENSORS["Soil Sensors<br/>Moisture, pH, Temp"]
+
+        CLAUDE --> RESPOND["Email Response"]
+        CLAUDE --> TASKS["Task Generation"]
+        CLAUDE --> ALERTS["Alert Triggers"]
+
+        RESPOND --> OUTBOUND["Outbound Email"]
+        ALERTS --> OUTBOUND
+    end
+
+    style WORKER fill:#d97706,stroke:#92400e,color:#fff
+    style CLAUDE fill:#2563eb,stroke:#1e40af,color:#fff
+    style D1 fill:#16a34a,stroke:#15803d,color:#fff
+    style KV fill:#16a34a,stroke:#15803d,color:#fff
+    style EMAIL fill:#fafafa,stroke:#a1a1aa,color:#1a1a1a
+    style CRON fill:#fafafa,stroke:#a1a1aa,color:#1a1a1a

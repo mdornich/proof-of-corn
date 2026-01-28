@@ -3,12 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
 # Triggers
-# - Full check at 6 AM UTC (midnight CST) - weather, emails, tasks
-# - HN sync every 4 hours - keeps community engagement fresh
+# - Full check every 6 hours (0:00, 6:00, 12:00, 18:00 UTC)
+#   Each check: weather, emails, tasks, HN sync
 [triggers]
 crons = [
-  "0 6 * * *",      # Full daily check
-  "0 */4 * * *"     # HN sync every 4 hours
+  "0 */6 * * *"     # Full check 4x daily
 ]
 
 # Environment variables (secrets added via wrangler secret)

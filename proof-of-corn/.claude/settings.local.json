@@ -12,7 +12,9 @@
       "Bash(wrangler deploy:*)",
       "Bash(npx wrangler secret put ADMIN_PASSWORD)",
       "Bash(printf:*)",
-      "mcp__gmail__gmail_search"
+      "mcp__gmail__gmail_search",
+      "mcp__gmail__gmail_read_inbox",
+      "mcp__gmail__gmail_read_email"
     ]
   }
 }

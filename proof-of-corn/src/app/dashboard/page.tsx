@@ -5,7 +5,7 @@ import PageLayout from '@/components/PageLayout';
 
 const FRED_API = 'https://farmer-fred.sethgoldstein.workers.dev';
 
-type TabType = 'overview' | 'weather' | 'inbox' | 'budget' | 'partnerships' | 'commodities' | 'regions' | 'analytics' | 'unionSquare';
+type TabType = 'overview' | 'weather' | 'inbox' | 'budget' | 'partnerships' | 'commodities' | 'regions' | 'analytics' | 'unionSquare' | 'changelog';
 
 interface Email {
   id: string;
@@ -163,6 +163,80 @@ const budgetRevenue = {
   total: 4000,
 };
 
+interface ChangelogEntry {
+  date: string;
+  version: string;
+  title: string;
+  summary: string;
+  changes: string[];
+  impact: string;
+}
+
+const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: 'January 27, 2026',
+    version: 'v2',
+    title: 'Autonomy Upgrade',
+    summary: 'Fred went from a mostly-passive agent that checks in 4x/day to one that reacts in real-time, follows up on its own, and alerts when something important happens.',
+    changes: [
+      'Instant email processing — incoming messages immediately become tasks instead of waiting for the 6-hour cron cycle',
+      'Proactive alerts — Fred emails Seth directly when a new lead, partnership inquiry, or weather emergency arrives (rate-limited to avoid noise)',
+      'Follow-up system — if Fred emails someone and they don\'t reply within 5-7 days, he automatically queues a gentle reminder (max 2 per contact, cancels on reply)',
+      'Real commodity tracking — the corn futures baseline comparison now pulls live price data with daily caching',
+      'Processes 10x more email per cycle — was capped at 2, now handles up to 10 including medium-priority',
+      'Forward detection fixed — emails forwarded from any of Seth\'s addresses now correctly reply to the actual sender',
+      '~450 lines of dead code removed',
+    ],
+    impact: 'Fred is now a real-time responsive agent, not just a batch processor.',
+  },
+  {
+    date: 'January 24, 2026',
+    version: 'v1.2',
+    title: 'Security & Transparency',
+    summary: 'Hardened email security, added public redacted inbox, admin authentication.',
+    changes: [
+      'Prompt injection detection (35+ patterns) on all incoming email',
+      'Spam scoring and automatic filtering',
+      'Public inbox view with redacted email addresses and sanitized bodies',
+      'Admin-only unredacted inbox behind password authentication',
+      'Rate limiting: 10 emails per sender per 24 hours',
+      'Email categorization: lead, partnership, question, spam, suspicious',
+    ],
+    impact: 'Full transparency without exposing sensitive contact info to the public.',
+  },
+  {
+    date: 'January 23, 2026',
+    version: 'v1.1',
+    title: 'Autonomous Email & HN Launch',
+    summary: 'Fred gained the ability to autonomously respond to emails and monitor Hacker News discussion.',
+    changes: [
+      'Autonomous email responses — Fred composes and sends replies during daily checks',
+      'Hacker News monitoring — tracks comments, sentiment, and unanswered questions',
+      'Forwarded email detection — replies to actual sender, CCs Seth',
+      'Task management system with priority queue',
+      'Partnership evaluation against constitutional principles',
+      'Learning system — Fred extracts insights from interactions',
+      'Community feedback collection',
+    ],
+    impact: 'Launched on Hacker News. #1 post. 100+ comments. Fred handled inbound autonomously.',
+  },
+  {
+    date: 'January 22, 2026',
+    version: 'v1.0',
+    title: 'Genesis',
+    summary: 'Farmer Fred goes live. Constitution ratified. First domain purchased.',
+    changes: [
+      'Constitutional framework: 6 core principles, autonomy levels, escalation triggers',
+      'Weather monitoring across 3 regions (Iowa, South Texas, Argentina)',
+      'Soil temperature estimation and planting condition evaluation',
+      'Budget tracking with revenue projections',
+      'Cloudflare Worker deployment with KV storage and D1 database',
+      'proofofcorn.com domain registered ($12.99 — first expense)',
+    ],
+    impact: 'The bet is on. Fred Wilson said "you can\'t grow corn." Watch him.',
+  },
+];
+
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [emails, setEmails] = useState<Email[]>([]);
@@ -180,50 +254,39 @@ export default function DashboardPage() {
 
   const fetchAll = async () => {
     setLoading(true);
+
+    // Fast endpoints first — render data in ~1-2s
     try {
-      const [inboxRes, tasksRes, hnRes, weatherRes, commoditiesRes, partnershipsRes, analyticsRes] = await Promise.all([
+      const [inboxRes, tasksRes, hnRes, weatherRes, commoditiesRes] = await Promise.all([
         fetch(`${FRED_API}/inbox/public`),
         fetch(`${FRED_API}/tasks`),
         fetch(`${FRED_API}/hn`),
         fetch(`${FRED_API}/weather`),
         fetch(`${FRED_API}/commodities`),
+      ]);
+
+      if (inboxRes.ok) { const data = await inboxRes.json(); setEmails(data.emails || []); }
+      if (tasksRes.ok) { const data = await tasksRes.json(); setTasks(data.tasks || []); }
+      if (hnRes.ok) { const data = await hnRes.json(); setHn(data); }
+      if (weatherRes.ok) { const data = await weatherRes.json(); setWeather(data.weather || []); }
+      if (commoditiesRes.ok) { const data = await commoditiesRes.json(); setCommodities(data); }
+      setLastRefresh(new Date());
+    } catch (e) {
+      console.error('Failed to fetch fast endpoints:', e);
+    }
+    setLoading(false);
+
+    // Slow endpoints in background — partnerships calls Claude (~20s)
+    try {
+      const [partnershipsRes, analyticsRes] = await Promise.all([
         fetch(`${FRED_API}/partnerships/evaluate`, { method: 'POST' }),
         fetch(`/api/analytics`),
       ]);
-
-      if (inboxRes.ok) {
-        const data = await inboxRes.json();
-        setEmails(data.emails || []);
-      }
-      if (tasksRes.ok) {
-        const data = await tasksRes.json();
-        setTasks(data.tasks || []);
-      }
-      if (hnRes.ok) {
-        const data = await hnRes.json();
-        setHn(data);
-      }
-      if (weatherRes.ok) {
-        const data = await weatherRes.json();
-        setWeather(data.weather || []);
-      }
-      if (commoditiesRes.ok) {
-        const data = await commoditiesRes.json();
-        setCommodities(data);
-      }
-      if (partnershipsRes.ok) {
-        const data = await partnershipsRes.json();
-        setPartnerships(data.evaluations || []);
-      }
-      if (analyticsRes.ok) {
-        const data = await analyticsRes.json();
-        setTrafficData(data.traffic);
-      }
-      setLastRefresh(new Date());
+      if (partnershipsRes.ok) { const data = await partnershipsRes.json(); setPartnerships(data.evaluations || []); }
+      if (analyticsRes.ok) { const data = await analyticsRes.json(); setTrafficData(data.traffic); }
     } catch (e) {
-      console.error('Failed to fetch:', e);
+      console.error('Failed to fetch slow endpoints:', e);
     }
-    setLoading(false);
   };
 
   const triggerAct = async () => {
@@ -279,6 +342,8 @@ export default function DashboardPage() {
         return renderUnionSquareTab();
       case 'analytics':
         return renderAnalyticsTab();
+      case 'changelog':
+        return renderChangelogTab();
       default:
         return null;
     }
@@ -467,38 +532,39 @@ export default function DashboardPage() {
           </div>
         </section>
 
-      {/* Task Queue */}
-      <section className="bg-white border border-zinc-200 rounded-lg p-5">
-        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-          Tasks
-          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-            {tasks.filter(t => t.status === 'pending').length} pending
-          </span>
-        </h2>
-        <div className="space-y-3 max-h-[600px] overflow-y-auto">
-          {tasks.length === 0 ? (
-            <p className="text-zinc-500 text-sm">No tasks</p>
-          ) : (
-            tasks.map((task) => (
-              <div
-                key={task.id}
-                className={`p-3 bg-zinc-50 rounded border ${
-                  task.status === 'completed' ? 'border-green-200 opacity-60' : 'border-zinc-100'
-                }`}
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <span className={`text-xs px-2 py-0.5 rounded ${priorityColor(task.priority)}`}>
-                    {task.priority}
-                  </span>
-                  <span className="text-xs text-zinc-400">{task.status}</span>
+        {/* Task Queue */}
+        <section className="bg-white border border-zinc-200 rounded-lg p-5">
+          <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+            Tasks
+            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+              {tasks.filter(t => t.status === 'pending').length} pending
+            </span>
+          </h2>
+          <div className="space-y-3 max-h-[600px] overflow-y-auto">
+            {tasks.length === 0 ? (
+              <p className="text-zinc-500 text-sm">No tasks</p>
+            ) : (
+              tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className={`p-3 bg-zinc-50 rounded border ${
+                    task.status === 'completed' ? 'border-green-200 opacity-60' : 'border-zinc-100'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className={`text-xs px-2 py-0.5 rounded ${priorityColor(task.priority)}`}>
+                      {task.priority}
+                    </span>
+                    <span className="text-xs text-zinc-400">{task.status}</span>
+                  </div>
+                  <div className="text-sm font-medium">{task.title}</div>
+                  <div className="text-xs text-zinc-500 mt-1 truncate">{task.description}</div>
                 </div>
-                <div className="text-sm font-medium">{task.title}</div>
-                <div className="text-xs text-zinc-500 mt-1 truncate">{task.description}</div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 
@@ -1193,6 +1259,61 @@ export default function DashboardPage() {
     </div>
   );
 
+  const renderChangelogTab = () => (
+    <div className="space-y-8">
+      <div className="bg-white border border-zinc-200 rounded-lg p-5">
+        <h2 className="text-xl font-bold mb-2">How Fred Evolves</h2>
+        <p className="text-sm text-zinc-600">
+          Every change to Farmer Fred is documented here. Full transparency into how the agent is built,
+          improved, and what capabilities are added over time.
+        </p>
+      </div>
+
+      {CHANGELOG.map((entry, i) => (
+        <div key={i} className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+          <div className="p-6 border-b border-zinc-100">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <h3 className="text-lg font-bold">{entry.title}</h3>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xs font-mono bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded">
+                    {entry.version}
+                  </span>
+                  <span className="text-sm text-zinc-500">{entry.date}</span>
+                </div>
+              </div>
+              {i === 0 && (
+                <span className="text-xs bg-amber-100 text-amber-800 px-3 py-1 rounded-full font-medium">
+                  Latest
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-zinc-700 mt-3">{entry.summary}</p>
+          </div>
+
+          <div className="p-6">
+            <div className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Changes</div>
+            <ul className="space-y-2">
+              {entry.changes.map((change, j) => (
+                <li key={j} className="flex items-start gap-3 text-sm text-zinc-700">
+                  <span className="text-amber-600 mt-0.5 flex-shrink-0">+</span>
+                  <span>{change}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="px-6 pb-6">
+            <div className="bg-amber-50 border border-amber-200 rounded p-3">
+              <div className="text-xs text-amber-800 font-medium">Impact</div>
+              <p className="text-sm text-amber-900 mt-1">{entry.impact}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   const tabs: { id: TabType; label: string; icon?: string }[] = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'weather', label: 'Weather', icon: '🌤️' },
@@ -1203,6 +1324,7 @@ export default function DashboardPage() {
     { id: 'regions', label: 'Regions', icon: '🌎' },
     { id: 'unionSquare', label: 'AI to Table', icon: '🌽' },
     { id: 'analytics', label: 'Analytics', icon: '📊' },
+    { id: 'changelog', label: 'Changelog', icon: '🔧' },
   ];
 
   const totalExpenses = budgetExpenses.reduce((sum, e) => sum + e.cost, 0);

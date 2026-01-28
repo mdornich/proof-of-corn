@@ -23,6 +23,9 @@ import { CONSTITUTION, SYSTEM_PROMPT } from "./constitution";
 import { fetchAllRegionsWeather, evaluatePlantingConditions } from "./tools/weather";
 import { createLogEntry, logDecision, logWeatherCheck, formatLogEntry, LogEntry } from "./tools/log";
 import { getHNContext, formatHNContextForAgent } from "./tools/hn";
+import { handleEmail } from "./email";
+import { sendAlertToSeth } from "./alerts";
+import { scheduleFollowUp, checkOverdueFollowUps } from "./followup";
 import {
   checkEmailSecurity,
   redactEmail,
@@ -31,6 +34,10 @@ import {
   verifyAdminAuth,
   SecurityCheck
 } from "./security";
+
+function stripCodeBlocks(text: string): string {
+  return text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+}
 
 export interface Env {
   ANTHROPIC_API_KEY: string;
@@ -43,6 +50,9 @@ export interface Env {
   AGENT_NAME: string;
   AGENT_VERSION: string;
 }
+
+// Seth's known email addresses (for forward detection)
+const SETH_ADDRESSES = ["sethgoldstein@gmail.com", "seth@slashvibe.dev"];
 
 // ============================================
 // MAIN WORKER
@@ -196,6 +206,9 @@ export default {
           }
           return await handleEvaluatePartnerships(env, corsHeaders);
 
+        case "/outreach-targets":
+          return await handleOutreachTargets(env, corsHeaders);
+
         default:
           return json({ error: "Not found", path }, corsHeaders, 404);
       }
@@ -210,30 +223,40 @@ export default {
   },
 
   /**
-   * Cron Trigger Handler - Daily check at 6 AM UTC
+   * Email Handler - Cloudflare Email Routing
+   * Processes incoming emails to fred@proofofcorn.com
+   */
+  async email(message: ForwardableEmailMessage, env: Env, ctx: ExecutionContext): Promise<void> {
+    console.log(`[Email] Incoming from ${message.from}: ${message.headers.get("subject")}`);
+    try {
+      await handleEmail(message, env);
+    } catch (error) {
+      console.error("[Email] Failed to process incoming email:", error);
+    }
+  },
+
+  /**
+   * Cron Trigger Handler - Full check every 6 hours
    */
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     const now = new Date();
-    const hour = now.getUTCHours();
-    const isMainCheck = hour === 6; // 6 AM UTC
 
-    console.log(`[${now.toISOString()}] Cron triggered: ${isMainCheck ? 'Full daily check' : 'HN sync'}`);
+    console.log(`[${now.toISOString()}] Cron triggered: Full check (every 6 hours)`);
 
     try {
-      if (isMainCheck) {
-        // Full daily check (weather, emails, tasks, HN)
-        const result = await performDailyCheck(env);
-        console.log("Daily check completed:", result.decision);
+      // Full check: weather, emails, tasks, HN
+      const result = await performDailyCheck(env);
+      console.log("Check completed:", result.decision);
 
-        // Store result in KV
-        await env.FARMER_FRED_KV.put(
-          `daily-check:${now.toISOString().split("T")[0]}`,
-          JSON.stringify(result),
-          { expirationTtl: 60 * 60 * 24 * 30 } // 30 days
-        );
-      } else {
-        // HN-only sync to keep community engagement fresh
-        console.log("Running HN sync...");
+      // Store result in KV
+      await env.FARMER_FRED_KV.put(
+        `daily-check:${now.toISOString().split("T")[0]}-${now.getUTCHours()}`,
+        JSON.stringify(result),
+        { expirationTtl: 60 * 60 * 24 * 30 } // 30 days
+      );
+
+      // Also sync HN data
+      try {
         const hnData = await getHNContext();
         await env.FARMER_FRED_KV.put(
           'hn:latest',
@@ -244,6 +267,8 @@ export default {
           comments: hnData.recentComments.length,
           score: hnData.post.score
         });
+      } catch (hnError) {
+        console.error("HN sync failed (non-critical):", hnError);
       }
     } catch (error) {
       console.error("Cron job failed:", error);
@@ -538,6 +563,18 @@ interface Task {
   dueAt?: string;
   status: "pending" | "in_progress" | "completed" | "blocked";
   assignedTo: "fred" | "human";
+}
+
+interface OutreachTarget {
+  id: string;
+  name: string;
+  organization: string;
+  email: string;
+  region: string;
+  category: "extension_agent" | "usda" | "farm_bureau" | "marketplace" | "direct_farmer";
+  priority: number;
+  status: "pending" | "contacted" | "replied" | "declined";
+  contactedAt?: string;
 }
 
 interface Learning {
@@ -837,15 +874,125 @@ async function handleProcessTask(
     return json({ error: "Task already completed" }, headers, 400);
   }
 
-  // Only handle email response tasks for now
-  if (task.type !== "respond_email" || !task.relatedEmailId) {
-    return json({ error: "Only email response tasks supported" }, headers, 400);
+  // Only handle email response and follow-up tasks
+  if (task.type !== "respond_email" && task.type !== "follow_up") {
+    return json({ error: "Only email and follow-up tasks supported" }, headers, 400);
+  }
+  if (task.type === "respond_email" && !task.relatedEmailId) {
+    return json({ error: "Email response task missing relatedEmailId" }, headers, 400);
   }
 
   if (!env.RESEND_API_KEY) {
     return json({ error: "RESEND_API_KEY not configured" }, headers, 500);
   }
 
+  // --- Follow-up task handling ---
+  if (task.type === "follow_up") {
+    // Extract contact email from title: "Follow up with someone@example.com"
+    const contactMatch = task.title.match(/Follow up with\s+(\S+@\S+)/i);
+    if (!contactMatch) {
+      return json({ error: "Could not extract contact from follow-up task title" }, headers, 400);
+    }
+    const contact = contactMatch[1];
+
+    try {
+      const followUpPrompt = `You are Farmer Fred, the AI farm manager for Proof of Corn.
+
+You previously contacted ${contact} but haven't heard back.
+Context: ${task.description}
+
+Compose a short, friendly follow-up email. Keep it under 100 words. Be warm but professional.
+
+IMPORTANT: Respond ONLY with valid JSON in this exact format:
+{"subject": "Following up - Proof of Corn", "body": "..."}`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 512,
+          messages: [{ role: "user", content: followUpPrompt }]
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        return json({ error: "Claude API error", details: error }, headers, 500);
+      }
+
+      const data: any = await response.json();
+      const emailContent = data.content?.[0]?.text;
+      if (!emailContent) {
+        return json({ error: "No response from Claude" }, headers, 500);
+      }
+
+      const parsed = JSON.parse(stripCodeBlocks(emailContent));
+
+      const emailPayload: any = {
+        from: "Farmer Fred <fred@proofofcorn.com>",
+        to: contact,
+        subject: parsed.subject,
+        text: parsed.body,
+        cc: "sethgoldstein@gmail.com"
+      };
+
+      const sendResponse = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(emailPayload)
+      });
+
+      if (!sendResponse.ok) {
+        const sendError = await sendResponse.text();
+        return json({ error: "Failed to send follow-up email", details: sendError }, headers, 500);
+      }
+
+      const sendResult: any = await sendResponse.json();
+
+      // Mark task completed
+      task.status = "completed";
+      await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task));
+
+      // Schedule another follow-up (max 2 enforced by followup.ts)
+      await scheduleFollowUp(env, contact, "lead", parsed.subject);
+
+      // Log outreach
+      const outreachLog = createLogEntry(
+        "outreach",
+        `Follow-up email sent to ${contact} (CC: sethgoldstein@gmail.com)`,
+        `Subject: ${parsed.subject}\n\n${parsed.body.slice(0, 200)}...`
+      );
+      await env.FARMER_FRED_KV.put(
+        `log:${Date.now()}-followup`,
+        JSON.stringify(outreachLog),
+        { expirationTtl: 60 * 60 * 24 * 90 }
+      );
+
+      return json({
+        success: true,
+        task: task.id,
+        email: {
+          to: contact,
+          cc: "sethgoldstein@gmail.com",
+          subject: parsed.subject,
+          body: parsed.body,
+          messageId: sendResult.id
+        }
+      }, headers);
+    } catch (error) {
+      return json({ error: "Failed to process follow-up task", details: String(error) }, headers, 500);
+    }
+  }
+
+  // --- Email response task handling ---
   // Get the email we're responding to
   const email = await env.FARMER_FRED_KV.get(`email:${task.relatedEmailId}`, "json") as Email | null;
   if (!email) {
@@ -857,10 +1004,10 @@ async function handleProcessTask(
   let ccRecipient: string | undefined;
   const forwardMatch = email.body.match(/From:\s*(?:.*?<)?([^\s<>]+@[^\s<>]+)(?:>)?/i);
 
-  if (forwardMatch && email.from === "sethgoldstein@gmail.com") {
-    // This is a forwarded email from Seth - reply to the actual sender and CC Seth
+  if (forwardMatch && SETH_ADDRESSES.includes(email.from.toLowerCase())) {
+    // This is a forwarded email from Seth - reply to the actual sender and CC the forwarding address
     actualSender = forwardMatch[1];
-    ccRecipient = "sethgoldstein@gmail.com";
+    ccRecipient = email.from;
   }
 
   try {
@@ -910,7 +1057,7 @@ Do not include any other text or formatting.`;
     // Parse the JSON response
     let parsed: { subject: string; body: string };
     try {
-      parsed = JSON.parse(emailContent);
+      parsed = JSON.parse(stripCodeBlocks(emailContent));
     } catch (e) {
       return json({ error: "Failed to parse Claude response", raw: emailContent }, headers, 500);
     }
@@ -923,10 +1070,8 @@ Do not include any other text or formatting.`;
       text: parsed.body
     };
 
-    // Add CC if this was a forwarded email
-    if (ccRecipient) {
-      emailPayload.cc = ccRecipient;
-    }
+    // Always CC Seth; use forwarding address if available
+    emailPayload.cc = ccRecipient || "sethgoldstein@gmail.com";
 
     const sendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -963,6 +1108,9 @@ Do not include any other text or formatting.`;
       JSON.stringify(outreachLog),
       { expirationTtl: 60 * 60 * 24 * 90 }
     );
+
+    // Schedule follow-up if no reply within N days
+    await scheduleFollowUp(env, actualSender, email.category, parsed.subject);
 
     return json({
       success: true,
@@ -1279,43 +1427,92 @@ async function extractLearningsFromEmail(email: Email, env: Env): Promise<Learni
 
 async function handleCommodities(env: Env, headers: Record<string, string>): Promise<Response> {
   // Corn futures tracking - parallel experiment to compare AI farming vs traditional investment
-  // Using CME Corn Futures (ZC) as baseline
+  const startDate = "2026-01-22";
+  const initialInvestment = 2500;
+  const startPricePerBushel = 4.50; // Corn price on project start date
 
-  const startDate = "2026-01-22"; // Project start date
-  const initialInvestment = 2500; // Same budget as actual farming
+  // Try cached data first (24-hour TTL)
+  const cacheKey = "commodities:corn-price";
+  let currentPrice: number | null = null;
+  let dataSource = "cache";
 
-  // Get current corn futures price (simplified - in production would use real API)
-  // For now, return structure with placeholder data
-  // TODO: Integrate with real commodities API (Quandl, Alpha Vantage, or CME)
+  const cached = await env.FARMER_FRED_KV.get(cacheKey, "json") as { price: number; fetchedAt: string } | null;
 
-  const baselineData = {
+  if (cached) {
+    currentPrice = cached.price;
+  } else {
+    // Fetch from Alpha Vantage (free tier: CORN commodity)
+    try {
+      const avKey = (env as any).ALPHA_VANTAGE_API_KEY;
+      if (avKey) {
+        const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=CORN&apikey=${avKey}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data: any = await res.json();
+          const quote = data["Global Quote"];
+          if (quote && quote["05. price"]) {
+            currentPrice = parseFloat(quote["05. price"]);
+            dataSource = "alpha_vantage";
+            // Cache for 24 hours
+            await env.FARMER_FRED_KV.put(cacheKey, JSON.stringify({
+              price: currentPrice,
+              fetchedAt: new Date().toISOString()
+            }), { expirationTtl: 60 * 60 * 24 });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[Commodities] Alpha Vantage fetch failed:", e);
+    }
+
+    // Fallback: if no API key or fetch failed, use start price
+    if (currentPrice === null) {
+      currentPrice = startPricePerBushel;
+      dataSource = "fallback";
+    }
+  }
+
+  // Calculate gain/loss vs project start
+  const priceChange = currentPrice - startPricePerBushel;
+  const pctChange = (priceChange / startPricePerBushel) * 100;
+  const bushelsEquiv = initialInvestment / startPricePerBushel;
+  const currentValue = bushelsEquiv * currentPrice;
+  const gainLoss = currentValue - initialInvestment;
+
+  // Get actual farming spend from budget
+  const budgetData = await env.FARMER_FRED_KV.get("budget", "json") as { spent: number } | null;
+  const actualSpent = budgetData?.spent || 12.99;
+
+  return json({
     investment: {
       initial: initialInvestment,
       date: startDate,
       asset: "CME Corn Futures (ZC)",
-      contracts: "Equivalent position sizing"
+      bushelsEquivalent: Math.round(bushelsEquiv)
     },
     current: {
-      // Placeholder - would fetch from API
-      pricePerBushel: 4.50, // Current corn price ($/bushel)
-      estimatedValue: 2500, // Current portfolio value
-      gainLoss: 0,
-      gainLossPercent: 0,
+      pricePerBushel: currentPrice,
+      startPricePerBushel,
+      priceChange: Math.round(priceChange * 100) / 100,
+      priceChangePct: Math.round(pctChange * 100) / 100,
+      estimatedValue: Math.round(currentValue * 100) / 100,
+      gainLoss: Math.round(gainLoss * 100) / 100,
+      gainLossPercent: Math.round(pctChange * 100) / 100,
       asOf: new Date().toISOString()
     },
     comparison: {
-      actualFarmingSpent: 12.99, // Domain + current spend
-      actualFarmingValue: 0, // No corn harvested yet
-      futuresValue: 2500,
-      advantage: "TBD - too early to compare"
+      actualFarmingSpent: actualSpent,
+      actualFarmingValue: 0,
+      futuresValue: Math.round(currentValue * 100) / 100,
+      advantage: gainLoss > 0
+        ? `Futures up $${Math.round(gainLoss * 100) / 100}`
+        : gainLoss < 0
+          ? `Futures down $${Math.round(Math.abs(gainLoss) * 100) / 100}`
+          : "Even"
     },
     note: "Commodities tracking is parallel experiment suggested by bwestergard on HN. This provides baseline ROI comparison for the AI farming experiment.",
-    dataSource: "Placeholder - real API integration pending",
-    hnThread: "https://news.ycombinator.com/item?id=42735511"
-  };
-
-  return json({
-    ...baselineData,
+    dataSource,
+    hnThread: "https://news.ycombinator.com/item?id=42735511",
     timestamp: new Date().toISOString()
   }, headers);
 }
@@ -1415,7 +1612,7 @@ Respond in JSON:
   let evaluationText = data.content?.[0]?.text || "{}";
 
   // Strip markdown code blocks if present
-  evaluationText = evaluationText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  evaluationText = stripCodeBlocks(evaluationText);
 
   const evaluation = JSON.parse(evaluationText);
 
@@ -1438,6 +1635,33 @@ Respond in JSON:
   }, headers);
 }
 
+async function handleOutreachTargets(env: Env, headers: Record<string, string>): Promise<Response> {
+  const targetKeys = await env.FARMER_FRED_KV.list({ prefix: "outreach-target:" });
+  const targets: OutreachTarget[] = [];
+
+  for (const key of targetKeys.keys) {
+    const target = await env.FARMER_FRED_KV.get(key.name, "json") as OutreachTarget | null;
+    if (target) targets.push(target);
+  }
+
+  targets.sort((a, b) => a.priority - b.priority);
+
+  const outreachKeys = await env.FARMER_FRED_KV.list({ prefix: "outreach:" });
+
+  return json({
+    targets,
+    summary: {
+      total: targets.length,
+      pending: targets.filter(t => t.status === "pending").length,
+      contacted: targets.filter(t => t.status === "contacted").length,
+      replied: targets.filter(t => t.status === "replied").length,
+      declined: targets.filter(t => t.status === "declined").length,
+      activeThreads: outreachKeys.keys.length
+    },
+    timestamp: new Date().toISOString()
+  }, headers);
+}
+
 // ============================================
 // CORE LOGIC
 // ============================================
@@ -1450,12 +1674,12 @@ async function performDailyCheck(env: Env) {
   // FULLY AUTONOMOUS: Process high-priority email tasks during daily check
   const executedActions: string[] = [];
   if (!result.needsHumanApproval && context.pendingTasks.length > 0 && env.RESEND_API_KEY) {
-    // Process up to 2 high-priority email tasks per day autonomously
-    const highPriorityEmailTasks = context.pendingTasks
-      .filter(t => t.priority === "high" && t.status === "pending" && t.description.includes("Respond to"))
-      .slice(0, 2);
+    // Process up to 10 pending email tasks per cycle autonomously
+    const emailTasks = context.pendingTasks
+      .filter(t => (t.priority === "high" || t.priority === "medium") && t.status === "pending")
+      .slice(0, 10);
 
-    for (const agentTask of highPriorityEmailTasks) {
+    for (const agentTask of emailTasks) {
       try {
         const task = await env.FARMER_FRED_KV.get(`task:${agentTask.id}`, "json") as Task | null;
 
@@ -1469,9 +1693,9 @@ async function performDailyCheck(env: Env) {
             let ccRecipient: string | undefined;
             const forwardMatch = email.body?.match(/From:\s*(?:.*?<)?([^\s<>]+@[^\s<>]+)(?:>)?/i);
 
-            if (forwardMatch && email.from === "sethgoldstein@gmail.com") {
+            if (forwardMatch && SETH_ADDRESSES.includes(email.from.toLowerCase())) {
               actualSender = forwardMatch[1];
-              ccRecipient = "sethgoldstein@gmail.com";
+              ccRecipient = email.from;
             }
 
             // Compose response with Claude
@@ -1508,7 +1732,7 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
               const emailContent = data.content?.[0]?.text;
 
               if (emailContent) {
-                const parsed = JSON.parse(emailContent);
+                const parsed = JSON.parse(stripCodeBlocks(emailContent));
 
                 // Send via Resend
                 const emailPayload: any = {
@@ -1517,7 +1741,7 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
                   subject: parsed.subject,
                   text: parsed.body
                 };
-                if (ccRecipient) emailPayload.cc = ccRecipient;
+                emailPayload.cc = ccRecipient || "sethgoldstein@gmail.com";
 
                 const sendResponse = await fetch("https://api.resend.com/emails", {
                   method: "POST",
@@ -1549,7 +1773,87 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
                     { expirationTtl: 60 * 60 * 24 * 90 }
                   );
 
+                  // Schedule follow-up
+                  await scheduleFollowUp(env, actualSender, email.category, parsed.subject);
+
                   executedActions.push(`AUTONOMOUS: Sent email to ${actualSender}`);
+                }
+              }
+            }
+          }
+        } else if (task && task.type === "follow_up") {
+          // Autonomous follow-up execution
+          const contactMatch = task.title.match(/Follow up with\s+(\S+@\S+)/i);
+          if (contactMatch) {
+            const contact = contactMatch[1];
+
+            const followUpPrompt = `You are Farmer Fred, the AI farm manager for Proof of Corn.
+
+You previously contacted ${contact} but haven't heard back.
+Context: ${task.description}
+
+Compose a short, friendly follow-up email. Keep it under 100 words. Be warm but professional.
+
+IMPORTANT: Respond ONLY with valid JSON in this exact format:
+{"subject": "Following up - Proof of Corn", "body": "..."}`;
+
+            const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": env.ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01"
+              },
+              body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 512,
+                messages: [{ role: "user", content: followUpPrompt }]
+              })
+            });
+
+            if (claudeResponse.ok) {
+              const data: any = await claudeResponse.json();
+              const emailContent = data.content?.[0]?.text;
+
+              if (emailContent) {
+                const parsed = JSON.parse(stripCodeBlocks(emailContent));
+
+                const emailPayload: any = {
+                  from: "Farmer Fred <fred@proofofcorn.com>",
+                  to: contact,
+                  subject: parsed.subject,
+                  text: parsed.body,
+                  cc: "sethgoldstein@gmail.com"
+                };
+
+                const sendResponse = await fetch("https://api.resend.com/emails", {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify(emailPayload)
+                });
+
+                if (sendResponse.ok) {
+                  task.status = "completed";
+                  await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task));
+
+                  // Schedule another follow-up (max 2 enforced by followup.ts)
+                  await scheduleFollowUp(env, contact, "lead", parsed.subject);
+
+                  const outreachLog = createLogEntry(
+                    "outreach",
+                    `Autonomous follow-up sent to ${contact} (CC: sethgoldstein@gmail.com)`,
+                    `Subject: ${parsed.subject}\n\n${parsed.body.slice(0, 200)}...\n\n[Follow-up sent during daily check]`
+                  );
+                  await env.FARMER_FRED_KV.put(
+                    `log:${Date.now()}-auto-followup`,
+                    JSON.stringify(outreachLog),
+                    { expirationTtl: 60 * 60 * 24 * 90 }
+                  );
+
+                  executedActions.push(`AUTONOMOUS: Follow-up sent to ${contact}`);
                 }
               }
             }
@@ -1559,6 +1863,192 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
         console.error("Failed to autonomously process task:", error);
         executedActions.push(`Failed: ${agentTask.description}`);
       }
+    }
+  }
+
+  // Check for overdue follow-ups and create tasks
+  await checkOverdueFollowUps(env);
+
+  // PROACTIVE OUTREACH: South Texas land acquisition
+  if (env.RESEND_API_KEY && env.ANTHROPIC_API_KEY) {
+    try {
+      const now = new Date();
+      const month = now.getMonth() + 1; // 1-indexed
+      const day = now.getDate();
+      const isPlantingWindow = (month === 1 && day >= 20) || month === 2;
+
+      if (isPlantingWindow) {
+        // Count active outreach threads
+        const outreachKeys = await env.FARMER_FRED_KV.list({ prefix: "outreach:" });
+        const activeThreads = outreachKeys.keys.length;
+
+        // Seed initial targets if none exist
+        const targetKeys = await env.FARMER_FRED_KV.list({ prefix: "outreach-target:" });
+        if (targetKeys.keys.length === 0) {
+          const seedTargets: OutreachTarget[] = [
+            {
+              id: "tamu-agrilife",
+              name: "AgriLife Extension Service",
+              organization: "Texas A&M AgriLife Extension",
+              email: "agrilife@ag.tamu.edu",
+              region: "South Texas",
+              category: "extension_agent",
+              priority: 1,
+              status: "pending"
+            },
+            {
+              id: "usda-fsa-tx",
+              name: "USDA Farm Service Agency - Texas",
+              organization: "USDA FSA Texas State Office",
+              email: "FSA.TX@usda.gov",
+              region: "South Texas",
+              category: "usda",
+              priority: 2,
+              status: "pending"
+            }
+          ];
+
+          for (const target of seedTargets) {
+            await env.FARMER_FRED_KV.put(
+              `outreach-target:${target.id}`,
+              JSON.stringify(target),
+              { expirationTtl: 60 * 60 * 24 * 180 }
+            );
+          }
+
+          // Create research task for finding more contacts
+          const researchTask: Task = {
+            id: `${Date.now()}-research-stx`,
+            type: "research",
+            priority: "high",
+            title: "Research South Texas farming contacts for land acquisition",
+            description: "Find county extension agents (Hidalgo, Cameron, Willacy), local Farm Bureau chapters, USDA FSA county offices, and farm lease listings for Rio Grande Valley / Corpus Christi area. Add each as an outreach target.",
+            createdAt: new Date().toISOString(),
+            dueAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+            status: "pending",
+            assignedTo: "fred"
+          };
+          await env.FARMER_FRED_KV.put(
+            `task:${researchTask.id}`,
+            JSON.stringify(researchTask),
+            { expirationTtl: 60 * 60 * 24 * 30 }
+          );
+
+          executedActions.push("AUTONOMOUS: Seeded initial outreach targets and created research task for South Texas contacts");
+        }
+
+        // If fewer than 8 active threads, send up to 2 cold outreach emails per cycle
+        if (activeThreads < 8) {
+          const allTargetKeys = await env.FARMER_FRED_KV.list({ prefix: "outreach-target:" });
+          let sent = 0;
+
+          for (const key of allTargetKeys.keys) {
+            if (sent >= 2) break;
+
+            const target = await env.FARMER_FRED_KV.get(key.name, "json") as OutreachTarget | null;
+            if (!target || target.status !== "pending" || !target.email) continue;
+
+            // Compose cold outreach via Claude
+            const outreachPrompt = `You are Farmer Fred, an AI farm manager for Proof of Corn (proofofcorn.com).
+
+You're reaching out to ${target.name} at ${target.organization} about acquiring farmland in South Texas for corn cultivation.
+
+Context:
+- Proof of Corn is an AI-managed farming experiment
+- We're looking for 5-50 acre plots in the Rio Grande Valley or Corpus Christi area
+- South Texas planting window is January-February
+- We're open to leasing or purchasing
+- Budget is modest but we're a serious, well-documented project (featured on Hacker News)
+
+Compose a professional, concise cold outreach email. Mention you're an AI agent (be transparent). Ask about available farmland or local resources. Keep it under 150 words.
+
+IMPORTANT: Respond ONLY with valid JSON in this exact format:
+{"subject": "...", "body": "..."}`;
+
+            const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": env.ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01"
+              },
+              body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 512,
+                messages: [{ role: "user", content: outreachPrompt }]
+              })
+            });
+
+            if (claudeResponse.ok) {
+              const data: any = await claudeResponse.json();
+              const emailContent = data.content?.[0]?.text;
+
+              if (emailContent) {
+                const parsed = JSON.parse(stripCodeBlocks(emailContent));
+
+                const emailPayload = {
+                  from: "Farmer Fred <fred@proofofcorn.com>",
+                  to: target.email,
+                  subject: parsed.subject,
+                  text: parsed.body,
+                  cc: "sethgoldstein@gmail.com"
+                };
+
+                const sendResponse = await fetch("https://api.resend.com/emails", {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify(emailPayload)
+                });
+
+                if (sendResponse.ok) {
+                  // Update target status
+                  target.status = "contacted";
+                  target.contactedAt = new Date().toISOString();
+                  await env.FARMER_FRED_KV.put(key.name, JSON.stringify(target), {
+                    expirationTtl: 60 * 60 * 24 * 180
+                  });
+
+                  // Track outreach thread
+                  await env.FARMER_FRED_KV.put(
+                    `outreach:${target.id}`,
+                    JSON.stringify({
+                      targetId: target.id,
+                      contact: target.email,
+                      sentAt: new Date().toISOString(),
+                      subject: parsed.subject
+                    }),
+                    { expirationTtl: 60 * 60 * 24 * 30 }
+                  );
+
+                  // Schedule follow-up
+                  await scheduleFollowUp(env, target.email, "lead", parsed.subject);
+
+                  // Log outreach
+                  const outreachLog = createLogEntry(
+                    "outreach",
+                    `Cold outreach sent to ${target.name} at ${target.organization} (${target.email})`,
+                    `Subject: ${parsed.subject}\n\n${parsed.body.slice(0, 200)}...\n\n[Proactive South Texas land acquisition]`
+                  );
+                  await env.FARMER_FRED_KV.put(
+                    `log:${Date.now()}-outreach-${target.id}`,
+                    JSON.stringify(outreachLog),
+                    { expirationTtl: 60 * 60 * 24 * 90 }
+                  );
+
+                  sent++;
+                  executedActions.push(`AUTONOMOUS: Cold outreach sent to ${target.name} (${target.email})`);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Proactive outreach failed (non-critical):", error);
+      executedActions.push(`Proactive outreach error: ${String(error)}`);
     }
   }
 
@@ -1590,6 +2080,18 @@ async function buildAgentContext(env: Env): Promise<AgentContext> {
       forecast: allWeather[0].forecast,
       plantingViable: allWeather[0].plantingViable
     } : null;
+
+    // Alert on weather emergencies (frost risk during planting season)
+    for (const rw of allWeather) {
+      if (rw.frostRisk && rw.plantingViable === false) {
+        await sendAlertToSeth(
+          env,
+          `weather-${rw.region}`,
+          `Weather emergency: ${rw.region}`,
+          `Frost risk in ${rw.region}! Temp: ${rw.temperature}°F, Soil est: ${rw.soilTempEstimate}°F.\n${rw.forecast}`
+        );
+      }
+    }
   } catch (e) {
     console.error("Weather fetch failed:", e);
   }

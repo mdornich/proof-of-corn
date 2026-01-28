@@ -100,29 +100,81 @@ export default function Home() {
 
       {/* Architecture */}
       <section className="px-6 py-16 border-b border-zinc-200 bg-white">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-2xl font-bold mb-6">The Architecture</h2>
-          <pre className="text-xs sm:text-sm text-zinc-700 bg-zinc-50 p-4 sm:p-6 rounded-lg overflow-x-auto font-mono leading-relaxed">
-{`
-    ╔═══════════════════════════════════════════╗
-    ║       CLAUDE CODE (Farm Manager)          ║
-    ║                                           ║
-    ║  → Aggregates sensor + weather data       ║
-    ║  → Makes planting/irrigation decisions    ║
-    ║  → Coordinates human operators            ║
-    ╚═══════════════════════════════════════════╝
-                       │
-         ┌─────────────┼─────────────┐
-         │             │             │
-         ▼             ▼             ▼
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-bold mb-8">The Architecture</h2>
+          <div className="bg-zinc-50 rounded-xl p-6 sm:p-10">
+            <svg viewBox="0 0 720 480" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto">
+              {/* Central node - Claude Code */}
+              <rect x="160" y="20" width="400" height="130" rx="8" fill="#fefce8" stroke="#d97706" strokeWidth="2" />
+              <text x="360" y="55" textAnchor="middle" fontFamily="system-ui, sans-serif" fontSize="16" fontWeight="700" fill="#92400e">CLAUDE CODE</text>
+              <text x="360" y="77" textAnchor="middle" fontFamily="system-ui, sans-serif" fontSize="13" fill="#a16207">Farm Manager</text>
+              <line x1="200" y1="94" x2="520" y2="94" stroke="#e5e7eb" strokeWidth="1" />
+              <text x="200" y="115" fontFamily="system-ui, sans-serif" fontSize="12" fill="#78716c">Aggregates sensor + weather data</text>
+              <text x="200" y="133" fontFamily="system-ui, sans-serif" fontSize="12" fill="#78716c">Makes planting &amp; irrigation decisions</text>
 
-    📊 INPUTS      🤝 PARTNERS     📋 OUTPUTS
+              {/* Connection lines */}
+              <line x1="360" y1="150" x2="360" y2="195" stroke="#d4d4d8" strokeWidth="2" />
+              <line x1="120" y1="195" x2="600" y2="195" stroke="#d4d4d8" strokeWidth="2" />
 
-    • IoT sensors  • Farmers      • Decision log
-    • Weather API  • Suppliers    • Instructions
-    • Satellite    • Equipment    • Actual corn
-`}
-          </pre>
+              {/* Vertical drops to each column */}
+              <line x1="120" y1="195" x2="120" y2="230" stroke="#d4d4d8" strokeWidth="2" />
+              <line x1="360" y1="195" x2="360" y2="230" stroke="#d4d4d8" strokeWidth="2" />
+              <line x1="600" y1="195" x2="600" y2="230" stroke="#d4d4d8" strokeWidth="2" />
+
+              {/* Arrowheads */}
+              <polygon points="120,230 114,220 126,220" fill="#d4d4d8" />
+              <polygon points="360,230 354,220 366,220" fill="#d4d4d8" />
+              <polygon points="600,230 594,220 606,220" fill="#d4d4d8" />
+
+              {/* INPUTS column */}
+              <rect x="30" y="240" width="180" height="220" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1.5" />
+              <rect x="30" y="240" width="180" height="40" rx="8" fill="#eff6ff" />
+              <rect x="30" y="272" width="180" height="2" fill="#e5e7eb" />
+              <text x="120" y="266" textAnchor="middle" fontFamily="system-ui, sans-serif" fontSize="13" fontWeight="700" fill="#1e40af">INPUTS</text>
+              <circle cx="58" cy="305" r="4" fill="#3b82f6" />
+              <text x="72" y="309" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">IoT sensors</text>
+              <circle cx="58" cy="335" r="4" fill="#3b82f6" />
+              <text x="72" y="339" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Weather API</text>
+              <circle cx="58" cy="365" r="4" fill="#3b82f6" />
+              <text x="72" y="369" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Satellite imagery</text>
+              <circle cx="58" cy="395" r="4" fill="#3b82f6" />
+              <text x="72" y="399" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Commodity prices</text>
+              <circle cx="58" cy="425" r="4" fill="#3b82f6" />
+              <text x="72" y="429" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Email inbox</text>
+
+              {/* PARTNERS column */}
+              <rect x="270" y="240" width="180" height="220" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1.5" />
+              <rect x="270" y="240" width="180" height="40" rx="8" fill="#fefce8" />
+              <rect x="270" y="272" width="180" height="2" fill="#e5e7eb" />
+              <text x="360" y="266" textAnchor="middle" fontFamily="system-ui, sans-serif" fontSize="13" fontWeight="700" fill="#92400e">PARTNERS</text>
+              <circle cx="298" cy="305" r="4" fill="#d97706" />
+              <text x="312" y="309" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Farmers</text>
+              <circle cx="298" cy="335" r="4" fill="#d97706" />
+              <text x="312" y="339" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Suppliers</text>
+              <circle cx="298" cy="365" r="4" fill="#d97706" />
+              <text x="312" y="369" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Equipment vendors</text>
+              <circle cx="298" cy="395" r="4" fill="#d97706" />
+              <text x="312" y="399" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Extension offices</text>
+              <circle cx="298" cy="425" r="4" fill="#d97706" />
+              <text x="312" y="429" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Local operators</text>
+
+              {/* OUTPUTS column */}
+              <rect x="510" y="240" width="180" height="220" rx="8" fill="white" stroke="#e5e7eb" strokeWidth="1.5" />
+              <rect x="510" y="240" width="180" height="40" rx="8" fill="#f0fdf4" />
+              <rect x="510" y="272" width="180" height="2" fill="#e5e7eb" />
+              <text x="600" y="266" textAnchor="middle" fontFamily="system-ui, sans-serif" fontSize="13" fontWeight="700" fill="#166534">OUTPUTS</text>
+              <circle cx="538" cy="305" r="4" fill="#16a34a" />
+              <text x="552" y="309" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Decision log</text>
+              <circle cx="538" cy="335" r="4" fill="#16a34a" />
+              <text x="552" y="339" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Email responses</text>
+              <circle cx="538" cy="365" r="4" fill="#16a34a" />
+              <text x="552" y="369" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Operator instructions</text>
+              <circle cx="538" cy="395" r="4" fill="#16a34a" />
+              <text x="552" y="399" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Weather alerts</text>
+              <circle cx="538" cy="425" r="4" fill="#16a34a" />
+              <text x="552" y="429" fontFamily="system-ui, sans-serif" fontSize="12" fill="#52525b">Actual corn</text>
+            </svg>
+          </div>
         </div>
       </section>
 

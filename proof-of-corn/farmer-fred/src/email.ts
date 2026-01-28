@@ -3,22 +3,25 @@
  *
  * Processes incoming emails to fred@proofofcorn.com
  * Stores them in KV for Fred to read during daily checks
+ *
+ * Stores in the Email format used by index.ts inbox handlers:
+ *   { id, from, subject, body, receivedAt, status, category, securityCheck? }
  */
 
 import { Env } from "./types";
+import { checkEmailSecurity, SecurityCheck } from "./security";
+import { sendAlertToSeth } from "./alerts";
+import { cancelFollowUp } from "./followup";
 
 export interface StoredEmail {
   id: string;
   from: string;
-  to: string;
   subject: string;
-  text: string;
-  html?: string;
+  body: string;
   receivedAt: string;
-  read: boolean;
-  requiresAction: boolean;
-  category: "farmer" | "vendor" | "community" | "spam" | "other";
-  sentiment: "positive" | "neutral" | "negative" | "question";
+  status: "unread" | "read" | "replied" | "archived";
+  category?: "lead" | "partnership" | "question" | "spam" | "other" | "suspicious";
+  securityCheck?: SecurityCheck;
 }
 
 /**
@@ -28,126 +31,119 @@ export async function handleEmail(
   message: ForwardableEmailMessage,
   env: Env
 ): Promise<void> {
-  const emailId = `email:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+  const emailId = `email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   // Parse the email
   const from = message.from;
-  const to = message.to;
   const subject = message.headers.get("subject") || "(no subject)";
 
   // Read the raw email content
   const rawEmail = await streamToString(message.raw);
-  const { text, html } = parseEmailBody(rawEmail);
+  const { text } = parseEmailBody(rawEmail);
 
-  // Analyze the email
-  const analysis = analyzeEmail(from, subject, text);
+  // Run security check
+  const securityCheck = checkEmailSecurity({ from, subject, body: text });
+
+  // Categorize the email
+  const category = categorizeEmail(from, subject, text, securityCheck);
 
   const storedEmail: StoredEmail = {
     id: emailId,
     from,
-    to,
     subject,
-    text: text.slice(0, 10000), // Limit size
-    html: html?.slice(0, 20000),
+    body: text.slice(0, 10000), // Limit size
     receivedAt: new Date().toISOString(),
-    read: false,
-    requiresAction: analysis.requiresAction,
-    category: analysis.category,
-    sentiment: analysis.sentiment
+    status: "unread",
+    category,
+    securityCheck
   };
 
-  // Store in KV
-  await env.FARMER_FRED_KV.put(emailId, JSON.stringify(storedEmail), {
+  // Store in KV with email: prefix (matches inbox handler queries)
+  await env.FARMER_FRED_KV.put(`email:${emailId}`, JSON.stringify(storedEmail), {
     expirationTtl: 60 * 60 * 24 * 90 // 90 days
   });
 
-  // Update unread count
-  const unreadCount = await env.FARMER_FRED_KV.get("email:unreadCount");
-  const newCount = (parseInt(unreadCount || "0") + 1).toString();
-  await env.FARMER_FRED_KV.put("email:unreadCount", newCount);
+  // Cancel any pending follow-up for this sender (they replied)
+  await cancelFollowUp(env, from);
 
   // Log the receipt
-  console.log(`[Email] Received from ${from}: "${subject}" - Category: ${analysis.category}`);
+  console.log(`[Email] Received from ${from}: "${subject}" - Category: ${category} - Safe: ${securityCheck.isSafe}`);
 
-  // If high priority, could trigger an alert or immediate processing
-  if (analysis.category === "farmer" && analysis.requiresAction) {
-    console.log(`[Email] HIGH PRIORITY: Farmer inquiry requires response`);
+  if (category === "suspicious" || !securityCheck.isSafe) {
+    console.log(`[Email] FLAGGED: Security concern from ${from}`);
+  } else if (category !== "spam") {
+    // Alert Seth on high-value emails
+    if (category === "lead" || category === "partnership") {
+      await sendAlertToSeth(
+        env,
+        category,
+        `New ${category}: ${subject}`,
+        `From: ${from}\nSubject: ${subject}\n\nPreview: ${text.slice(0, 300)}`
+      );
+    }
+
+    // Auto-create a respond_email task so the next cron cycle picks it up
+    const priority = (category === "lead" || category === "partnership") ? "high" : "medium";
+    const task = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type: "respond_email" as const,
+      priority,
+      title: `Respond to ${from}: ${subject}`,
+      description: `Respond to ${category} email from ${from}. Subject: "${subject}"`,
+      relatedEmailId: emailId,
+      createdAt: new Date().toISOString(),
+      status: "pending" as const,
+      assignedTo: "fred" as const
+    };
+    await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task), {
+      expirationTtl: 60 * 60 * 24 * 30 // 30 days
+    });
+    console.log(`[Email] Auto-created ${priority} task for ${category} email from ${from}`);
   }
 }
 
 /**
- * Analyze email content for categorization
+ * Categorize email using the unified category system
+ * Maps to: "lead" | "partnership" | "question" | "spam" | "other" | "suspicious"
  */
-function analyzeEmail(
+function categorizeEmail(
   from: string,
   subject: string,
-  text: string
-): {
-  category: StoredEmail["category"];
-  sentiment: StoredEmail["sentiment"];
-  requiresAction: boolean;
-} {
-  const lowerFrom = from.toLowerCase();
-  const lowerSubject = subject.toLowerCase();
-  const lowerText = text.toLowerCase();
-  const combined = `${lowerSubject} ${lowerText}`;
-
-  // Category detection
-  let category: StoredEmail["category"] = "other";
-
-  // Farmer/land owner keywords
-  const farmerKeywords = ["acre", "land", "farm", "lease", "rent", "corn", "crop", "field", "tractor", "equipment", "irrigation"];
-  if (farmerKeywords.some(kw => combined.includes(kw))) {
-    category = "farmer";
+  text: string,
+  securityCheck: SecurityCheck
+): StoredEmail["category"] {
+  // Security takes priority
+  if (!securityCheck.isSafe || securityCheck.recommendation === "block") {
+    return "suspicious";
   }
 
-  // Vendor keywords
-  const vendorKeywords = ["quote", "price", "service", "supply", "order", "invoice", "shipping"];
-  if (vendorKeywords.some(kw => combined.includes(kw))) {
-    category = "vendor";
-  }
-
-  // Community/HN keywords
-  const communityKeywords = ["hacker news", "hn", "cool project", "interesting", "love this", "suggestion", "question"];
-  if (communityKeywords.some(kw => combined.includes(kw))) {
-    category = "community";
-  }
+  const combined = `${subject} ${text}`.toLowerCase();
 
   // Spam indicators
   const spamKeywords = ["unsubscribe", "click here", "limited time", "winner", "congratulations", "act now"];
   if (spamKeywords.some(kw => combined.includes(kw)) && !combined.includes("corn")) {
-    category = "spam";
+    return "spam";
   }
 
-  // Sentiment
-  let sentiment: StoredEmail["sentiment"] = "neutral";
-
-  const positiveWords = ["great", "awesome", "love", "excited", "interested", "help", "offer", "available"];
-  const negativeWords = ["concern", "problem", "issue", "complaint", "disappointed", "wrong"];
-  const questionIndicators = ["?", "how", "what", "when", "where", "can you", "do you", "is there"];
-
-  const positiveCount = positiveWords.filter(w => combined.includes(w)).length;
-  const negativeCount = negativeWords.filter(w => combined.includes(w)).length;
-  const hasQuestion = questionIndicators.some(q => combined.includes(q));
-
-  if (hasQuestion) {
-    sentiment = "question";
-  } else if (positiveCount > negativeCount) {
-    sentiment = "positive";
-  } else if (negativeCount > positiveCount) {
-    sentiment = "negative";
+  // Lead: farmer/land owner keywords (high-value contacts)
+  const leadKeywords = ["acre", "land", "farm", "lease", "rent", "corn", "crop", "field", "tractor", "equipment", "irrigation", "soil", "seed", "planting"];
+  if (leadKeywords.some(kw => combined.includes(kw))) {
+    return "lead";
   }
 
-  // Requires action if:
-  // - It's from a farmer/vendor
-  // - Contains a question
-  // - Is positive (potential lead)
-  const requiresAction =
-    (category === "farmer" || category === "vendor") ||
-    (sentiment === "question" && category !== "spam") ||
-    (sentiment === "positive" && category === "community");
+  // Partnership: vendor/collaboration keywords
+  const partnerKeywords = ["partner", "collaborat", "api", "data", "satellite", "sensor", "platform", "service", "supply", "sponsor", "farmpin", "digital earth"];
+  if (partnerKeywords.some(kw => combined.includes(kw))) {
+    return "partnership";
+  }
 
-  return { category, sentiment, requiresAction };
+  // Question: community/general inquiries
+  const questionIndicators = ["?", "how", "what", "when", "where", "can you", "do you", "is there", "hacker news", "hn", "cool project"];
+  if (questionIndicators.some(q => combined.includes(q))) {
+    return "question";
+  }
+
+  return "other";
 }
 
 /**
@@ -228,10 +224,8 @@ export async function getUnreadEmails(env: Env): Promise<StoredEmail[]> {
   const keys = await env.FARMER_FRED_KV.list({ prefix: "email:" });
 
   for (const key of keys.keys) {
-    if (key.name === "email:unreadCount") continue;
-
     const email = await env.FARMER_FRED_KV.get(key.name, "json") as StoredEmail | null;
-    if (email && !email.read) {
+    if (email && email.status === "unread") {
       emails.push(email);
     }
   }
@@ -246,15 +240,10 @@ export async function getUnreadEmails(env: Env): Promise<StoredEmail[]> {
  * Mark email as read
  */
 export async function markEmailRead(env: Env, emailId: string): Promise<void> {
-  const email = await env.FARMER_FRED_KV.get(emailId, "json") as StoredEmail | null;
+  const email = await env.FARMER_FRED_KV.get(`email:${emailId}`, "json") as StoredEmail | null;
   if (email) {
-    email.read = true;
-    await env.FARMER_FRED_KV.put(emailId, JSON.stringify(email));
-
-    // Update unread count
-    const unreadCount = await env.FARMER_FRED_KV.get("email:unreadCount");
-    const newCount = Math.max(0, parseInt(unreadCount || "0") - 1).toString();
-    await env.FARMER_FRED_KV.put("email:unreadCount", newCount);
+    email.status = "read";
+    await env.FARMER_FRED_KV.put(`email:${emailId}`, JSON.stringify(email));
   }
 }
 
@@ -270,12 +259,13 @@ export function formatEmailsForAgent(emails: StoredEmail[]): string {
 
   const byCategory: Record<string, StoredEmail[]> = {};
   for (const email of emails) {
-    if (!byCategory[email.category]) byCategory[email.category] = [];
-    byCategory[email.category].push(email);
+    const cat = email.category || "other";
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(email);
   }
 
-  // Prioritize farmer and vendor emails
-  const order: StoredEmail["category"][] = ["farmer", "vendor", "community", "other", "spam"];
+  // Prioritize leads and partnerships
+  const order: NonNullable<StoredEmail["category"]>[] = ["lead", "partnership", "question", "other", "spam"];
 
   for (const category of order) {
     const categoryEmails = byCategory[category];
@@ -287,8 +277,8 @@ export function formatEmailsForAgent(emails: StoredEmail[]): string {
       const hoursAgo = Math.round((Date.now() - new Date(email.receivedAt).getTime()) / (1000 * 60 * 60));
       ctx += `- From: ${email.from} (${hoursAgo}h ago)\n`;
       ctx += `  Subject: "${email.subject}"\n`;
-      ctx += `  Preview: "${email.text.slice(0, 100)}${email.text.length > 100 ? "..." : ""}"\n`;
-      ctx += `  Action needed: ${email.requiresAction ? "YES" : "No"}\n`;
+      ctx += `  Preview: "${email.body.slice(0, 100)}${email.body.length > 100 ? "..." : ""}"\n`;
+      ctx += `  Status: ${email.status}\n`;
     }
   }
 

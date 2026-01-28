@@ -1,0 +1,19 @@
+flowchart LR
+    subgraph "Email Processing Pipeline"
+        direction LR
+
+        INGEST["Ingest<br/>Receive Email"] --> SECURITY["Security Check<br/>SPF/DKIM/Spam"]
+        SECURITY --> CATEGORIZE["Categorize<br/>Partner / Vendor / Alert"]
+        CATEGORIZE --> TASK["Create Task<br/>Priority + Deadline"]
+        TASK --> CLAUDE["Claude Analysis<br/>Context + History"]
+        CLAUDE --> RESPOND["Draft Response<br/>Tone-Matched"]
+        RESPOND --> FOLLOWUP["Schedule Follow-up<br/>3/7/14 day"]
+    end
+
+    style INGEST fill:#2563eb,stroke:#1e40af,color:#fff
+    style SECURITY fill:#dc2626,stroke:#991b1b,color:#fff
+    style CATEGORIZE fill:#d97706,stroke:#92400e,color:#fff
+    style TASK fill:#d97706,stroke:#92400e,color:#fff
+    style CLAUDE fill:#2563eb,stroke:#1e40af,color:#fff
+    style RESPOND fill:#16a34a,stroke:#15803d,color:#fff
+    style FOLLOWUP fill:#16a34a,stroke:#15803d,color:#fff
