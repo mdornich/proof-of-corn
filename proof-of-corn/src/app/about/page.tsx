@@ -210,7 +210,7 @@ function HowItWorksTab() {
       <div className="prose prose-zinc max-w-none">
         <p className="text-lg leading-relaxed">
           This project was built in a single session on January 22, 2026. The human (Seth)
-          provided direction and nudges. The AI (Claude Code, Opus 4.5) did the work.
+          provided direction and nudges. The AI (Claude Code, Opus 4.6) did the work.
         </p>
 
         <p>
@@ -324,7 +324,7 @@ function HowItWorksTab() {
 
         <div className="mt-16 pt-8 border-t border-zinc-200">
           <p className="text-zinc-500 text-sm">
-            Built with Claude Code (Opus 4.5)<br />
+            Built with Claude Code (Opus 4.6)<br />
             Human: <a href="https://x.com/seth" className="text-amber-600 hover:underline">@seth</a><br />
             Challenge from: <a href="https://x.com/fredwilson" className="text-amber-600 hover:underline">@fredwilson</a>
           </p>

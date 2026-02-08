@@ -174,6 +174,20 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: 'February 8, 2026',
+    version: 'v3',
+    title: 'Sprint Weekend',
+    summary: 'Refreshed site for February, fixed agent performance, preparing for partnership meetings.',
+    changes: [
+      'Dynamic planting countdown — 62 days until Iowa window opens April 11',
+      'Timeline updated to reflect actual progress: HN launch, 44 partnerships, 3 priority leads',
+      'Partnership evaluation caching — reduced API calls from every-request to hourly',
+      'Dashboard polling reduced from 60s to 5min for better performance',
+      'Model upgrade: Claude Code Opus 4.5 → Opus 4.6',
+    ],
+    impact: 'Site feels current again. Agent costs reduced. Ready for the push to secure land before planting window.',
+  },
+  {
     date: 'January 27, 2026',
     version: 'v2',
     title: 'Autonomy Upgrade',
