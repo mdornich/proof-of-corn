@@ -16,6 +16,7 @@
  *   POST /learnings     - Add a new learning
  *   GET  /feedback      - View community feedback
  *   POST /feedback      - Submit feedback to help Fred improve
+ *   POST /tweet         - Post to X/Twitter (admin, auto-compose or custom text)
  *
  * Voice (Twilio + ElevenLabs):
  *   POST /voice/incoming  - Twilio webhook for incoming calls (returns TwiML)
@@ -98,6 +99,11 @@ export interface Env {
   ELEVENLABS_AGENT_ID: string;
   // Moltbook
   MOLTBOOK_API_KEY?: string;
+  // X (Twitter) API
+  X_API_KEY?: string;
+  X_API_SECRET?: string;
+  X_ACCESS_TOKEN?: string;
+  X_ACCESS_TOKEN_SECRET?: string;
 }
 
 // Seth's known email addresses (for forward detection)
@@ -278,6 +284,12 @@ export default {
             return json({ error: "POST or GET required" }, corsHeaders, 405);
           }
           return await handleEvaluatePartnerships(env, corsHeaders);
+
+        case "/tweet":
+          if (request.method !== "POST") {
+            return json({ error: "POST required" }, corsHeaders, 405);
+          }
+          return await handleTweet(request, env, corsHeaders);
 
         case "/outreach-targets":
           return await handleOutreachTargets(env, corsHeaders);
@@ -2108,6 +2120,56 @@ Respond in JSON:
   return json(result, headers);
 }
 
+async function handleTweet(request: Request, env: Env, headers: Record<string, string>): Promise<Response> {
+  // Verify admin auth
+  const authHeader = request.headers.get("Authorization") || "";
+  const token = authHeader.replace("Bearer ", "");
+  if (token !== env.ADMIN_PASSWORD) {
+    return json({ error: "Unauthorized" }, headers, 401);
+  }
+
+  if (!env.X_API_KEY || !env.X_API_SECRET || !env.X_ACCESS_TOKEN || !env.X_ACCESS_TOKEN_SECRET) {
+    return json({ error: "X API credentials not configured. Add secrets: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET" }, headers, 500);
+  }
+
+  try {
+    const { postTweet, composeFarmUpdate } = await import("./twitter");
+    const body = await request.json() as { text?: string; auto?: boolean };
+
+    let tweetText = body.text;
+
+    // Auto-compose from current state if no text provided
+    if (!tweetText || body.auto) {
+      const weatherRes = await getWeatherForRegions(env);
+      const taskKeys = await env.FARMER_FRED_KV.list({ prefix: "task:" });
+      const daysToPlanting = Math.max(0, Math.ceil((new Date("2026-04-11").getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+
+      tweetText = composeFarmUpdate({
+        weather: weatherRes,
+        partnerships: taskKeys.keys.length,
+        daysToPlanting,
+      });
+    }
+
+    const result = await postTweet(tweetText, {
+      X_API_KEY: env.X_API_KEY,
+      X_API_SECRET: env.X_API_SECRET,
+      X_ACCESS_TOKEN: env.X_ACCESS_TOKEN,
+      X_ACCESS_TOKEN_SECRET: env.X_ACCESS_TOKEN_SECRET,
+    });
+
+    if (result.success) {
+      // Log the tweet
+      const logEntry = createLogEntry("agent", "Tweet Posted", `Fred tweeted: ${tweetText}\n\n${result.tweetUrl || ""}`);
+      await env.FARMER_FRED_KV.put(`log:${Date.now()}-tweet`, JSON.stringify(logEntry), { expirationTtl: 60 * 60 * 24 * 90 });
+    }
+
+    return json(result, headers);
+  } catch (e) {
+    return json({ error: String(e) }, headers, 500);
+  }
+}
+
 async function handleOutreachTargets(env: Env, headers: Record<string, string>): Promise<Response> {
   const targetKeys = await env.FARMER_FRED_KV.list({ prefix: "outreach-target:" });
   const targets: OutreachTarget[] = [];
@@ -2148,19 +2210,19 @@ async function performDailyCheck(env: Env) {
   const executedActions: string[] = [];
   if (!result.needsHumanApproval && context.pendingTasks.length > 0 && env.RESEND_API_KEY) {
     // Process up to 3 pending email tasks per cycle autonomously (limited to avoid Worker timeout)
-    // Prioritize: follow_up and respond_email first, skip research
+    // Prioritize: follow_up and respond_email first, then research
     const emailTasks = context.pendingTasks
       .filter(t => (t.priority === "high" || t.priority === "medium") && t.status === "pending")
       .sort((a, b) => {
-        // Put actionable tasks first (follow_up, respond_email before research)
+        // Put actionable tasks first (follow_up, respond_email, then research)
         const typeOrder = (desc: string) => {
           if (desc.includes("Follow up")) return 0;
           if (desc.includes("Respond to")) return 1;
-          return 2;
+          return 2; // research and other tasks
         };
         return typeOrder(a.description) - typeOrder(b.description);
       })
-      .slice(0, 3);
+      .slice(0, 5);
 
     for (const agentTask of emailTasks) {
       try {
@@ -2344,6 +2406,51 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
                 }
               }
             }
+          }
+        } else if (task && task.type === "research") {
+          // Autonomous research execution
+          try {
+            const { executeResearch } = await import("./research");
+            const result = await executeResearch(task, {
+              ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
+              FARMER_FRED_KV: env.FARMER_FRED_KV,
+            });
+
+            // Mark task as completed
+            task.status = "completed";
+            await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task));
+
+            // Log the research result
+            const researchLog = createLogEntry(
+              "research",
+              `Research Complete: ${task.title}`,
+              `Found ${result.findings.length} findings and ${result.contacts.length} contacts from ${result.source}\n\n${result.findings.slice(0, 3).join("\n")}`
+            );
+            await env.FARMER_FRED_KV.put(`log:${Date.now()}-research`, JSON.stringify(researchLog), { expirationTtl: 60 * 60 * 24 * 90 });
+
+            // Create outreach targets from discovered contacts
+            for (const contact of result.contacts.slice(0, 5)) {
+              if (contact.email) {
+                const target = {
+                  id: `outreach-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  name: contact.name,
+                  email: contact.email,
+                  phone: contact.phone || "",
+                  organization: contact.organization,
+                  role: contact.role,
+                  region: task.description.toLowerCase().includes("texas") ? "South Texas" : "Iowa",
+                  status: "identified",
+                  discoveredAt: new Date().toISOString(),
+                  source: "research-automation",
+                };
+                await env.FARMER_FRED_KV.put(`outreach-target:${target.id}`, JSON.stringify(target), { expirationTtl: 60 * 60 * 24 * 180 });
+              }
+            }
+
+            executedActions.push(`AUTONOMOUS: Research completed - ${task.title} (${result.contacts.length} contacts found)`);
+          } catch (researchError) {
+            console.error("Research execution failed:", researchError);
+            executedActions.push(`Research failed: ${task.title} - ${String(researchError)}`);
           }
         }
       } catch (error) {
