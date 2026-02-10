@@ -178,6 +178,17 @@ export default {
             anthropicKeyPrefix: env.ANTHROPIC_API_KEY ? env.ANTHROPIC_API_KEY.slice(0, 10) + "..." : "NOT SET"
           }, corsHeaders);
 
+        case "/api-usage": {
+          // API usage tracking — 7-day history
+          const usageDays: Record<string, { calls: number; totalMs: number }> = {};
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+            const u = await env.FARMER_FRED_KV.get(`api-usage:${d}`, "json") as { calls: number; totalMs: number } | null;
+            if (u) usageDays[d] = u;
+          }
+          return json({ usage: usageDays, lastFingerprint: await env.FARMER_FRED_KV.get("state:last-fingerprint") }, corsHeaders);
+        }
+
         case "/constitution":
           // Return HTML for browsers, JSON for API clients
           const accept = request.headers.get("Accept") || "";
@@ -588,11 +599,29 @@ async function handleStatus(env: Env, headers: Record<string, string>): Promise<
   const today = new Date().toISOString().split("T")[0];
   const lastCheck = await env.FARMER_FRED_KV.get(`daily-check:${today}`, "json");
 
+  // Critical path metrics — honest accountability
+  const daysAlive = Math.floor((Date.now() - new Date("2026-01-22").getTime()) / (1000 * 60 * 60 * 24));
+  const daysToPlanting = Math.max(0, Math.ceil((new Date("2026-05-15").getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const apiUsage = await env.FARMER_FRED_KV.get(`api-usage:${today}`, "json") as { calls: number; totalMs: number } | null;
+
   return json({
     agent: getAgentInfo(env),
     weather,
     recentLogs,
     lastDailyCheck: lastCheck,
+    criticalPath: {
+      landSecured: false,
+      seedOrdered: false,
+      operatorContracted: false,
+      sensorsDeployed: false,
+      primaryLead: "Joe Nelson / Nelson Family Farms (Humboldt County, Iowa)",
+      nextMilestone: "Confirm land partnership with Joe",
+      daysAlive,
+      daysToPlanting,
+      moneySpentOnFarming: 0,
+      totalBudget: 2500,
+    },
+    apiUsage: apiUsage || { calls: 0, totalMs: 0 },
     timestamp: new Date().toISOString()
   }, headers);
 }
@@ -2221,9 +2250,67 @@ async function handleOutreachTargets(env: Env, headers: Record<string, string>):
 // ============================================
 
 async function performDailyCheck(env: Env) {
-  const agent = new FarmerFredAgent(env.ANTHROPIC_API_KEY);
+  // ============================================
+  // STATE DIFF — Skip Claude call if nothing changed
+  // ============================================
   const context = await buildAgentContext(env);
+
+  // Build a fingerprint of current state
+  const stateFingerprint = JSON.stringify({
+    newEmails: context.emails.filter(e => e.requiresAction).length,
+    pendingTasks: context.pendingTasks.length,
+    iowaWeather: context.allWeather?.find(w => w.region === "Iowa")?.temperature,
+    iowaPlantingViable: context.allWeather?.find(w => w.region === "Iowa")?.plantingViable,
+  });
+
+  const lastFingerprint = await env.FARMER_FRED_KV.get("state:last-fingerprint");
+  const lastCheckTime = await env.FARMER_FRED_KV.get("state:last-check-time");
+  const hoursSinceLastCheck = lastCheckTime
+    ? (Date.now() - parseInt(lastCheckTime)) / (1000 * 60 * 60)
+    : 999;
+
+  // If nothing changed AND it's been less than 24h, skip the Claude call
+  if (stateFingerprint === lastFingerprint && hoursSinceLastCheck < 24) {
+    console.log("[DAILY CHECK] No state changes detected. Skipping Claude call.");
+
+    // Still track the skip
+    const skipLog = createLogEntry(
+      "agent",
+      "Daily Check — No Changes",
+      `State unchanged since last check (${Math.round(hoursSinceLastCheck)}h ago). Skipped Claude API call. Pending tasks: ${context.pendingTasks.length}. Actionable emails: ${context.emails.filter(e => e.requiresAction).length}.`
+    );
+    await env.FARMER_FRED_KV.put(`log:${Date.now()}-skip`, JSON.stringify(skipLog), { expirationTtl: 60 * 60 * 24 * 90 });
+
+    // Still process pending tasks (email/follow-up), just skip the planning call
+    return {
+      decision: "No state changes — skipped planning call",
+      rationale: "State fingerprint unchanged. No new emails, no new task completions, weather stable.",
+      actions: [],
+      needsHumanApproval: false,
+      skippedClaudeCall: true,
+    };
+  }
+
+  // Save new fingerprint
+  await env.FARMER_FRED_KV.put("state:last-fingerprint", stateFingerprint);
+  await env.FARMER_FRED_KV.put("state:last-check-time", Date.now().toString());
+
+  // ============================================
+  // CLAUDE CALL — Only when state actually changed
+  // ============================================
+  const apiCallStart = Date.now();
+  const agent = new FarmerFredAgent(env.ANTHROPIC_API_KEY);
   const result = await agent.dailyCheck(context);
+  const apiCallMs = Date.now() - apiCallStart;
+
+  // Track API usage
+  const today = new Date().toISOString().split("T")[0];
+  const usageKey = `api-usage:${today}`;
+  const usage = await env.FARMER_FRED_KV.get(usageKey, "json") as { calls: number; totalMs: number } | null;
+  await env.FARMER_FRED_KV.put(usageKey, JSON.stringify({
+    calls: (usage?.calls || 0) + 1,
+    totalMs: (usage?.totalMs || 0) + apiCallMs,
+  }), { expirationTtl: 60 * 60 * 24 * 30 });
 
   // FULLY AUTONOMOUS: Process high-priority email tasks during daily check
   const executedActions: string[] = [];
