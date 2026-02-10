@@ -188,10 +188,10 @@ export default function Home() {
           <div className="flex items-start gap-4">
             <div className="text-3xl">🌽</div>
             <div>
-              <p className="font-bold text-blue-900 mb-1">AI to Table: Union Square Farmers Market</p>
+              <p className="font-bold text-blue-900 mb-1">AI to Table: Union Square, NYC</p>
               <p className="text-sm text-blue-800 mb-3">
                 Target: <strong>August 2, 2026</strong>. Fred&apos;s first ear of roasted corn, grown autonomously
-                from seed to harvest, sold at Union Square Greenmarket in NYC. Farm-to-table, but orchestrated by AI.
+                from seed to harvest in Iowa, served at Union Square in NYC. Farm-to-table, orchestrated entirely by AI.
               </p>
               <div className="flex gap-2 text-xs">
                 <span className="px-3 py-1 bg-white rounded-full text-blue-900 border border-blue-200">
@@ -221,13 +221,13 @@ export default function Home() {
             {[
               { date: "Jan 22, 2026", event: "Challenge accepted", status: "done" },
               { date: "Jan 22-25", event: "Site launched, hit #1 HN, Fred goes autonomous", status: "done" },
-              { date: "Jan 26 - Feb 8", event: "44 partnerships evaluated, 3 top leads identified", status: "done" },
-              { date: "Feb-Mar", event: "Land partnership — finalizing with Nebraska, Purdue, Zimbabwe", status: "active" },
-              { date: "March", event: "Sensors deployed", status: "pending" },
-              { date: "Apr 11 - May 18", event: "Planting window", status: "pending" },
-              { date: "May - Sep", event: "Growing season (AI managing)", status: "pending" },
-              { date: "Sep-Oct", event: "Harvest", status: "pending" },
-              { date: "Aug 2, 2026", event: "🌽 Union Square Farmers Market debut", status: "goal" },
+              { date: "Jan 26 - Feb 8", event: "Fred goes autonomous: email, voice, X/Twitter, research", status: "done" },
+              { date: "Feb 10", event: "Iowa confirmed as primary path — Joe Nelson / Nelson Family Farms", status: "active" },
+              { date: "Feb-Mar", event: "Land secured, seed ordered, planting plan finalized", status: "pending" },
+              { date: "Mid-May", event: "Plant sweet corn (Humboldt County, Iowa)", status: "pending" },
+              { date: "May - Aug", event: "Growing season — AI monitoring + decisions", status: "pending" },
+              { date: "Early Aug", event: "Harvest sweet corn", status: "pending" },
+              { date: "Aug 2, 2026", event: "Union Square NYC — AI-grown corn, seed to table", status: "goal" },
             ].map((item, i) => (
               <div key={i} className="flex gap-4">
                 <div className="w-32 flex-shrink-0 text-sm text-zinc-500">

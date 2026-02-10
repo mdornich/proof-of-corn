@@ -113,7 +113,7 @@ export function CountdownBanner() {
               <span className="text-xs text-blue-600 font-medium">Aug 2, 2026</span>
             </div>
             <p className="text-sm text-blue-800 mb-2">
-              Fred is autonomously orchestrating seed-to-harvest corn production for his NYC Greenmarket debut.
+              Sweet corn, Iowa to NYC. Partnering with Nelson Family Farms (Humboldt County) for a mid-May planting.
             </p>
             {latestAction && (
               <p className="text-xs text-blue-700 border-t border-blue-200 pt-2 mt-2">
