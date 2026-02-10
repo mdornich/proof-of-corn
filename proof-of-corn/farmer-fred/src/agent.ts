@@ -211,13 +211,23 @@ ${this.formatContext(context)}`;
       prompt += "\n";
     }
 
-    prompt += `## Your Task`;
+    prompt += `## CRITICAL PATH — Read This First
+
+**The ONLY thing that matters right now is securing Iowa land for April planting.**
+
+- PRIMARY LEAD: Joe Nelson (Nelson Family Farms, Humboldt County, Iowa). He has land, he's on the governance council, and he's engaged.
+- DO NOT re-evaluate partnerships if nothing has changed since last check.
+- DO NOT send cold outreach to South Texas or Argentina — Iowa is the path.
+- DO NOT create tasks for things that are already in progress.
+- If you have nothing new to act on, say so. "No new information, no new actions needed" is a valid decision.
+- Only recommend actions that ADVANCE the Iowa planting timeline.
+
+## Your Task`;
 
     return prompt + `
-1. Analyze the current state across all regions
-2. Identify any actions needed today
-3. For each action, determine if you can act autonomously or need approval
-4. Provide your decisions with clear rationale
+1. What changed since the last check? If nothing, say "no changes" and stop.
+2. Are there any NEW actions needed today? Only list actions that advance the critical path.
+3. For each action, determine if you can act autonomously or need approval.
 
 Respond in this format:
 

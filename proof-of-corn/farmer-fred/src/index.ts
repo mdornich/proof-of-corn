@@ -123,6 +123,25 @@ const GOVERNANCE_COUNCIL = [
 const GOVERNANCE_CC = GOVERNANCE_COUNCIL.map(m => m.email);
 
 // ============================================
+// EMAIL VALIDATION — Stop emailing bounce/system addresses
+// ============================================
+const BLOCKED_EMAIL_PATTERNS = [
+  /@bounce\./i,          // X/Twitter bounce addresses
+  /@send\./i,            // SES return-path addresses
+  /^0[0-9a-f]{10,}/i,   // AWS SES message IDs used as addresses
+  /noreply@/i,           // No-reply addresses
+  /no-reply@/i,
+  /mailer-daemon@/i,
+  /postmaster@/i,
+  /fred@proofofcorn\.com/i,  // Don't email ourselves
+];
+
+function isValidRecipient(email: string): boolean {
+  if (!email || !email.includes("@")) return false;
+  return !BLOCKED_EMAIL_PATTERNS.some(pattern => pattern.test(email));
+}
+
+// ============================================
 // MAIN WORKER
 // ============================================
 
@@ -1984,7 +2003,7 @@ async function handleEvaluatePartnerships(env: Env, headers: Record<string, stri
   const cached = await env.FARMER_FRED_KV.get("partnerships:latest-evaluation", "json") as any;
   if (cached && cached.timestamp) {
     const age = Date.now() - new Date(cached.timestamp).getTime();
-    if (age < 60 * 60 * 1000) { // 1 hour
+    if (age < 7 * 24 * 60 * 60 * 1000) { // 7 days — no point re-evaluating without new data
       return json(cached, headers);
     }
   }
@@ -2140,7 +2159,7 @@ async function handleTweet(request: Request, env: Env, headers: Record<string, s
 
     // Auto-compose from current state if no text provided
     if (!tweetText || body.auto) {
-      const weatherRes = await getWeatherForRegions(env);
+      const weatherRes = await fetchAllRegionsWeather(env.OPENWEATHER_API_KEY);
       const taskKeys = await env.FARMER_FRED_KV.list({ prefix: "task:" });
       const daysToPlanting = Math.max(0, Math.ceil((new Date("2026-04-11").getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
@@ -2243,6 +2262,15 @@ async function performDailyCheck(env: Env) {
               ccRecipient = email.from;
             }
 
+            // VALIDATION: Don't email bounce/system addresses
+            if (!isValidRecipient(actualSender)) {
+              console.log(`[SKIP] Invalid recipient: ${actualSender}`);
+              task.status = "completed"; // Close it out, don't retry
+              await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task));
+              executedActions.push(`SKIPPED: Invalid recipient ${actualSender}`);
+              continue;
+            }
+
             // Compose response with Claude
             const emailPrompt = `You are Farmer Fred, the AI farm manager for Proof of Corn.
 
@@ -2330,9 +2358,19 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
           }
         } else if (task && task.type === "follow_up") {
           // Autonomous follow-up execution
-          const contactMatch = task.title.match(/Follow up with\s+(\S+@\S+)/i);
+          const contactMatch = task.title.match(/Follow up with\s+(\S+@\S+)/i) ||
+                               task.title.match(/(\S+@\S+)/);
           if (contactMatch) {
             const contact = contactMatch[1];
+
+            // VALIDATION: Don't email bounce/system addresses
+            if (!isValidRecipient(contact)) {
+              console.log(`[SKIP] Invalid follow-up recipient: ${contact}`);
+              task.status = "completed";
+              await env.FARMER_FRED_KV.put(`task:${task.id}`, JSON.stringify(task));
+              executedActions.push(`SKIPPED: Invalid recipient ${contact}`);
+              continue;
+            }
 
             const followUpPrompt = `You are Farmer Fred, the AI farm manager for Proof of Corn.
 
@@ -2463,8 +2501,10 @@ IMPORTANT: Respond ONLY with valid JSON in this exact format:
   // Check for overdue follow-ups and create tasks
   await checkOverdueFollowUps(env);
 
-  // PROACTIVE OUTREACH: South Texas land acquisition
-  if (env.RESEND_API_KEY && env.ANTHROPIC_API_KEY) {
+  // PROACTIVE OUTREACH: DISABLED — Iowa/Joe Nelson is the primary path.
+  // South Texas cold outreach was running every cron cycle with no real leads,
+  // creating tasks to nowhere. Re-enable only if Iowa falls through.
+  if (false && env.RESEND_API_KEY && env.ANTHROPIC_API_KEY) {
     try {
       const now = new Date();
       const month = now.getMonth() + 1; // 1-indexed
