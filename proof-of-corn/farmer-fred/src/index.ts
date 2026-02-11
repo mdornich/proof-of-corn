@@ -72,6 +72,7 @@ import {
   extractCallLearnings,
   getCallLearningsPrompt,
 } from "./voice";
+import { sendSms } from "./tools/twilio";
 import { heartbeat as moltbookHeartbeat, getMoltbookStatus } from "./tools/moltbook";
 export { FarmerFredCall } from "./voice";
 
@@ -431,6 +432,169 @@ export default {
           // Moltbook agent social network status
           const moltStatus = await getMoltbookStatus(env);
           return json(moltStatus, corsHeaders);
+
+        // ---- SMS Endpoints ----
+
+        case "/sms/send": {
+          // Send SMS from Fred (admin only)
+          if (request.method !== "POST") return json({ error: "POST only" }, corsHeaders, 405);
+          if (!verifyAdminAuth(request, env.ADMIN_PASSWORD)) {
+            return json({ error: "Unauthorized" }, corsHeaders, 401);
+          }
+          const smsBody = await request.json() as { to: string; message?: string; compose?: boolean };
+          if (!smsBody.to) return json({ error: "Missing 'to' phone number" }, corsHeaders, 400);
+
+          let smsText = smsBody.message || "";
+
+          // Auto-compose: let Claude write a message in Fred's voice for Dan
+          if (smsBody.compose || !smsText) {
+            const contact = await env.FARMER_FRED_KV.get(`sms-contact:${smsBody.to}`, "json") as { name?: string; role?: string } | null;
+            const contactName = contact?.name || "there";
+            const composeRes = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "x-api-key": env.ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "claude-sonnet-4-5-20250929",
+                max_tokens: 300,
+                messages: [{ role: "user", content: `You are Farmer Fred, an AI farming agent for Proof of Corn. You need to send an SMS text message to ${contactName}.
+
+CONTEXT: You're texting a real person who works on the farm. Be warm, relational, and speak in farming language — not tech jargon. Keep it SHORT (2-3 sentences max). This is a text message, not an email.
+
+${smsBody.message ? `TOPIC: ${smsBody.message}` : "TOPIC: Introduce yourself. You're Farmer Fred, an AI helping coordinate sweet corn planting at Nelson Family Farms this spring. Joe Nelson brought you on board. You're looking forward to working together."}
+
+Write ONLY the text message body. No quotes, no subject line, no signature.` }],
+              }),
+            });
+            const composeData = await composeRes.json() as { content?: { text?: string }[] };
+            smsText = composeData.content?.[0]?.text || smsText || "Hey, this is Farmer Fred from Proof of Corn. Joe Nelson connected us — looking forward to working together this spring!";
+          }
+
+          if (smsText.length > 1600) smsText = smsText.slice(0, 1597) + "...";
+
+          const smsResult = await sendSms(env, smsBody.to, smsText);
+
+          if (smsResult.success) {
+            // Log it
+            const smsLog = createLogEntry("outreach", `SMS sent to ${smsBody.to}`, `Message: ${smsText}`);
+            await env.FARMER_FRED_KV.put(`log:${Date.now()}-sms`, JSON.stringify(smsLog), { expirationTtl: 60 * 60 * 24 * 90 });
+            // Store conversation thread
+            const thread = await env.FARMER_FRED_KV.get(`sms-thread:${smsBody.to}`, "json") as { messages: { from: string; body: string; timestamp: string }[] } | null;
+            const messages = thread?.messages || [];
+            messages.push({ from: "fred", body: smsText, timestamp: new Date().toISOString() });
+            await env.FARMER_FRED_KV.put(`sms-thread:${smsBody.to}`, JSON.stringify({ messages }));
+          }
+
+          return json({ ...smsResult, messageSent: smsText }, corsHeaders);
+        }
+
+        case "/sms/incoming": {
+          // Twilio incoming SMS webhook
+          if (request.method !== "POST") return json({ error: "POST only" }, corsHeaders, 405);
+          const formData = await request.formData();
+          const from = formData.get("From") as string || "";
+          const body = formData.get("Body") as string || "";
+          const messageSid = formData.get("MessageSid") as string || "";
+
+          console.log(`[SMS] Incoming from ${from}: ${body}`);
+
+          // Store in thread
+          const inThread = await env.FARMER_FRED_KV.get(`sms-thread:${from}`, "json") as { messages: { from: string; body: string; timestamp: string }[] } | null;
+          const inMessages = inThread?.messages || [];
+          inMessages.push({ from: from, body, timestamp: new Date().toISOString() });
+          await env.FARMER_FRED_KV.put(`sms-thread:${from}`, JSON.stringify({ messages: inMessages }));
+
+          // Log it
+          const inLog = createLogEntry("comms", `SMS received from ${from}`, `Message: ${body}\nSID: ${messageSid}`);
+          await env.FARMER_FRED_KV.put(`log:${Date.now()}-sms-in`, JSON.stringify(inLog), { expirationTtl: 60 * 60 * 24 * 90 });
+
+          // Auto-reply using Claude (in Fred's voice, conversational)
+          const contact = await env.FARMER_FRED_KV.get(`sms-contact:${from}`, "json") as { name?: string; role?: string } | null;
+          const threadHistory = inMessages.slice(-10).map(m =>
+            `${m.from === "fred" ? "Fred" : (contact?.name || from)}: ${m.body}`
+          ).join("\n");
+
+          const replyRes = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": env.ANTHROPIC_API_KEY,
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "claude-sonnet-4-5-20250929",
+              max_tokens: 300,
+              messages: [{ role: "user", content: `You are Farmer Fred, an AI farming agent for Proof of Corn at Nelson Family Farms, Humboldt County, Iowa.
+
+You're texting with ${contact?.name || "someone"} (${contact?.role || "farm contact"}). Be warm, practical, and speak in farming language. Keep replies SHORT — 1-3 sentences. This is a text conversation, match their energy.
+
+CONVERSATION SO FAR:
+${threadHistory}
+
+Write ONLY your reply text. No quotes.` }],
+            }),
+          });
+          const replyData = await replyRes.json() as { content?: { text?: string }[] };
+          let replyText = replyData.content?.[0]?.text || "";
+
+          if (replyText && replyText.length <= 1600) {
+            const replyResult = await sendSms(env, from, replyText);
+            if (replyResult.success) {
+              inMessages.push({ from: "fred", body: replyText, timestamp: new Date().toISOString() });
+              await env.FARMER_FRED_KV.put(`sms-thread:${from}`, JSON.stringify({ messages: inMessages }));
+            }
+          }
+
+          // Return TwiML empty response (Twilio expects this)
+          return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
+            headers: { "Content-Type": "text/xml" },
+          });
+        }
+
+        case "/sms/threads": {
+          // View SMS conversation threads (admin only)
+          if (!verifyAdminAuth(request, env.ADMIN_PASSWORD)) {
+            return json({ error: "Unauthorized" }, corsHeaders, 401);
+          }
+          const threadList = await env.FARMER_FRED_KV.list({ prefix: "sms-thread:" });
+          const threads: Record<string, unknown> = {};
+          for (const key of threadList.keys) {
+            const thread = await env.FARMER_FRED_KV.get(key.name, "json");
+            const phone = key.name.replace("sms-thread:", "");
+            const contact = await env.FARMER_FRED_KV.get(`sms-contact:${phone}`, "json");
+            threads[phone] = { contact, ...(thread as Record<string, unknown>) };
+          }
+          return json({ threads }, corsHeaders);
+        }
+
+        case "/sms/contacts": {
+          // Manage SMS contacts (admin only)
+          if (!verifyAdminAuth(request, env.ADMIN_PASSWORD)) {
+            return json({ error: "Unauthorized" }, corsHeaders, 401);
+          }
+          if (request.method === "POST") {
+            const contactBody = await request.json() as { phone: string; name: string; role?: string };
+            if (!contactBody.phone || !contactBody.name) {
+              return json({ error: "Missing phone or name" }, corsHeaders, 400);
+            }
+            await env.FARMER_FRED_KV.put(`sms-contact:${contactBody.phone}`, JSON.stringify({
+              name: contactBody.name,
+              role: contactBody.role || "farm contact",
+              addedAt: new Date().toISOString(),
+            }));
+            return json({ success: true, contact: contactBody }, corsHeaders);
+          }
+          // GET - list all SMS contacts
+          const contactList = await env.FARMER_FRED_KV.list({ prefix: "sms-contact:" });
+          const contacts: Record<string, unknown> = {};
+          for (const key of contactList.keys) {
+            contacts[key.name.replace("sms-contact:", "")] = await env.FARMER_FRED_KV.get(key.name, "json");
+          }
+          return json({ contacts }, corsHeaders);
+        }
 
         default:
           // Check for /calls/:callSid pattern
