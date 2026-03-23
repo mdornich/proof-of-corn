@@ -158,6 +158,39 @@ AND log_decision("Irrigation needed: low moisture, no rain forecast")
 
 ---
 
+## Market Validation: AI Agriculture Is a $2B Category
+
+In March 2026, Halter (New Zealand) raised **$2 billion** from Peter Thiel's Founders Fund for AI-powered cattle management collars. Their trademarked algorithm — the "Cowgorithm" — uses IoT collars to replace manual herding with virtual fencing and remote commands. 400,000 cattle managed with one button. Revenue model: $5-8/animal/month recurring.
+
+**The architecture is identical to Proof of Corn:**
+
+| | Halter (Cattle) | Proof of Corn (Crops) |
+|---|---|---|
+| **Sensors** | GPS/IMU collar on each animal | Soil moisture, temp, humidity sensors |
+| **Data** | Animal behavior, location, health | Soil conditions, weather, satellite imagery |
+| **AI Layer** | Cowgorithm (proprietary) | Claude Code (general-purpose) |
+| **Physical Execution** | Vibration/audio cues to animal | Instructions to human operator |
+| **Business Model** | $5-8/animal/month | ~$50/acre/season (see below) |
+| **Scale** | $2B valuation | $3K total cost |
+
+The pattern is: **sensors -> data -> AI decisions -> physical execution.** This isn't one vertical — it's a repeating architecture across all of agriculture.
+
+### Per-Acre SaaS Pricing (Halter Analogy)
+
+Halter proved recurring revenue works for AI agriculture at $5-8/animal/month. The crop equivalent:
+
+| Tier | Per Acre/Month | What's Included |
+|------|---------------|-----------------|
+| **Monitor** | $8/acre/month | Sensor data + dashboards + alerts |
+| **Manage** | $15/acre/month | + AI decision recommendations |
+| **Orchestrate** | $25/acre/month | + Automated operator coordination, full decision log |
+
+At the **Orchestrate** tier across Proof of Corn's 5 acres for a 6-month season: $750 total — compared to $2,500-3,000 for the same services hired manually. At scale (1,000 acres): $150K/season recurring revenue.
+
+This is how Proof of Corn becomes a business, not just a challenge.
+
+---
+
 ## Why This Works
 
 The insight is that Claude doesn't need to drive a tractor. It needs to:
